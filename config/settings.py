@@ -3,73 +3,56 @@
 # Default Portfolio File Path
 DEFAULT_PORTFOLIO_FILE = "Snowball Holdings.csv"
 
-# Mapping specific categories to broader financial types
-CATEGORY_TYPES = {
+# 2. Analytics Mapping (Maps Category -> Fixed/Variable/Income)
+# This controls the "Fixed vs Variable" chart automatically
+CATEGORY_TYPE_MAP = {
     # Income
-    "Salary": "Income",
-    "Dividends": "Income",
+    "Salary": "Income", "Dividends": "Income", "Business Income": "Income",
+    "Refunds": "Income", "Other Income": "Income",
 
-    # Investments
-    "Investing": "Investment",
+    # Investment
+    "Investment Deposit": "Investment", "Investment Withdrawal": "Investment",
 
     # Fixed Expenses
-    "Fixed OPEX (Mortgage)": "Fixed",
-    "Rent": "Fixed",
-    "Fleet Fund": "Fixed",
+    "Housing (Mortgage/Rent)": "Fixed",
+    "Utilities": "Fixed",
+    "Subscriptions": "Fixed",
+    "Education": "Fixed",
+    "Insurance": "Fixed",
 
     # Variable Expenses
-    "Living (Groceries)": "Variable",
-    "Health Fund": "Variable",
-    "Dining": "Variable",
+    "Groceries": "Variable",
+    "Dining Out": "Variable",
+    "Transport (Fuel/Taxi)": "Variable",
+    "Health & Wellness": "Variable",
     "Shopping": "Variable",
+    "Travel": "Variable",
+    "Services": "Variable",
+    "Family/Kids": "Variable",
+    "Other Expense": "Variable",
 
     # Default
     "Uncategorized": "Variable"
 }
 
-# Default Magic Categorization Rules
-DEFAULT_RULES = [
-    {'pattern': 'Trading 212', 'target': 'Investing'},
-    {'pattern': 'Albert', 'target': 'Living (Groceries)'},
-    {'pattern': 'Tesco', 'target': 'Living (Groceries)'},
-    {'pattern': 'Hypoteka', 'target': 'Fixed OPEX (Mortgage)'},
-    {'pattern': 'Shell', 'target': 'Fleet Fund'},
-    {'pattern': 'Benzina', 'target': 'Fleet Fund'},
-    {'pattern': 'Lekarna', 'target': 'Health Fund'},
-    {'pattern': 'Dr. Max', 'target': 'Health Fund'}
-]
-
-# config/settings.py
-
-# ... (Keep CATEGORY_TYPES as is) ...
-
-CATEGORY_TYPES = {
-    "Salary": "Income",
-    "Dividends": "Income",
-    "Investing": "Investment",
-    "Fixed OPEX (Mortgage)": "Fixed",
-    "Rent": "Fixed",
-    "Fleet Fund": "Fixed",
-    "Living (Groceries)": "Variable",
-    "Health Fund": "Variable",
-    "Dining": "Variable",
-    "Shopping": "Variable",
-    "Transport": "Variable",
-    "Uncategorized": "Variable"
-}
-
-# GLOBAL RULES: These apply to ALL users of the system
+# 3. Global Rules (Updated to match new Category names)
 GLOBAL_RULES = [
-    {'pattern': 'Trading 212', 'target': 'Investing'},
-    {'pattern': 'Hypoteka', 'target': 'Fixed OPEX (Mortgage)'},
-    {'pattern': 'Shell', 'target': 'Fleet Fund'},
-    {'pattern': 'Benzina', 'target': 'Fleet Fund'},
-    {'pattern': 'MOL', 'target': 'Fleet Fund'},
-    {'pattern': 'Lekarna', 'target': 'Health Fund'},
-    {'pattern': 'Dr. Max', 'target': 'Health Fund'},
-    {'pattern': 'Albert', 'target': 'Living (Groceries)'},
-    {'pattern': 'Tesco', 'target': 'Living (Groceries)'},
-    {'pattern': 'Lidl', 'target': 'Living (Groceries)'},
-    {'pattern': 'Netflix', 'target': 'Living (Groceries)'},
-    {'pattern': 'Spotify', 'target': 'Living (Groceries)'}
+    {'pattern': 'Trading 212', 'target': 'Investment Deposit'},
+    {'pattern': 'XTB', 'target': 'Investment Deposit'},
+    {'pattern': 'Hypoteka', 'target': 'Housing (Mortgage/Rent)'},
+    {'pattern': 'Shell', 'target': 'Transport (Fuel/Taxi)'},
+    {'pattern': 'Benzina', 'target': 'Transport (Fuel/Taxi)'},
+    {'pattern': 'MOL', 'target': 'Transport (Fuel/Taxi)'},
+    {'pattern': 'Uber', 'target': 'Transport (Fuel/Taxi)'},
+    {'pattern': 'Bolt', 'target': 'Transport (Fuel/Taxi)'},
+    {'pattern': 'Lekarna', 'target': 'Health & Wellness'},
+    {'pattern': 'Dr. Max', 'target': 'Health & Wellness'},
+    {'pattern': 'Albert', 'target': 'Groceries'},
+    {'pattern': 'Tesco', 'target': 'Groceries'},
+    {'pattern': 'Lidl', 'target': 'Groceries'},
+    {'pattern': 'Kaufland', 'target': 'Groceries'},
+    {'pattern': 'Rohlik', 'target': 'Groceries'},
+    {'pattern': 'Netflix', 'target': 'Subscriptions'},
+    {'pattern': 'Spotify', 'target': 'Subscriptions'},
+    {'pattern': 'YouTube', 'target': 'Subscriptions'}
 ]

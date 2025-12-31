@@ -1,14 +1,12 @@
 # modules/processing.py
 import pandas as pd
-from config.settings import CATEGORY_TYPES
+from config.settings import CATEGORY_TYPE_MAP
 
 
 def translate_transactions(df):
-    """
-    Placeholder for translation logic.
-    Future extension: Integrate Google Translate API or LLM.
-    """
+    """Placeholder for translation logic."""
     return df
+
 
 def apply_categorization(df, global_rules, user_rules):
     """
@@ -19,9 +17,6 @@ def apply_categorization(df, global_rules, user_rules):
     df['Category'] = 'Uncategorized'
 
     # Combine rules: User rules take precedence (applied last or logic specific)
-    # Here we apply Global first, so User rules can overwrite if needed
-    # or we can merge them. For simplicity: simple sequential application.
-
     # 1. Apply Global Rules
     sorted_global = sorted(global_rules, key=lambda x: len(x['pattern']), reverse=True)
     for rule in sorted_global:
@@ -35,36 +30,32 @@ def apply_categorization(df, global_rules, user_rules):
             mask = df['Description'].str.lower().str.contains(rule['pattern'].lower(), na=False)
             df.loc[mask, 'Category'] = rule['target']
 
-    # Map Types
-    df['Type'] = df['Category'].map(CATEGORY_TYPES).fillna('Variable')
-    df.loc[df['Amount'] > 0, 'Type'] = 'Income'
+    # Map Types using the new MAP
+    df['Type'] = df['Category'].map(CATEGORY_TYPE_MAP).fillna('Variable')
+
+    # Safety net: Any positive amount is strictly treated as Income type for cashflow calc,
+    # unless it's an investment withdrawal which we might treat differently.
+    # For MVP, let's trust the Map, but ensure positive unmapped items are Income.
+    mask_income = (df['Amount'] > 0) & (df['Type'] == 'Variable')
+    df.loc[mask_income, 'Type'] = 'Income'
 
     return df
 
 
 def suggest_patterns(df):
     """
-    Analyzes 'Uncategorized' transactions and groups them by description
-    to find high-impact rules.
+    Analyzes 'Uncategorized' transactions.
     """
     if df.empty: return pd.DataFrame()
 
-    # Filter only Uncategorized
     uncat = df[df['Category'] == 'Uncategorized'].copy()
-
     if uncat.empty: return pd.DataFrame()
 
-    # Group by Description to find frequency
-    # We strip numbers/dates often found in bank desc to group better (simple heuristic)
-    # For now, exact string match grouping:
     suggestions = uncat.groupby('Description').agg(
         Count=('Amount', 'count'),
         Total_Value=('Amount', 'sum'),
-        Example_Source=('Source', 'first'),
         Example_Currency=('Currency', 'first')
     ).reset_index()
 
-    # Sort by Count (Frequency) then Value (Impact)
     suggestions = suggestions.sort_values(['Count', 'Total_Value'], ascending=[False, True])
-
     return suggestions

@@ -95,7 +95,7 @@ if nav == "Dashboard Overview":
         with c_info:
             st.info("💡 No cashflow data loaded. Upload statements to see trends.")
         with c_btn:
-            st.button("🚀 Upload Bank Statements", use_container_width=True,
+            st.button("🚀 Upload Bank Statements", width='stretch',
                      on_click=go_to_page, args=("Cashflow & Ledger",))
 
 # 2. ASSETS
@@ -132,7 +132,7 @@ elif nav == "Cashflow & Ledger":
             st.caption("Supports CSV and ZIP archives.")
             files = st.file_uploader("Drop files here", type=['csv', 'zip'], accept_multiple_files=True)
             if files:
-                if st.button("📥 Process Files", type="secondary", use_container_width=True):
+                if st.button("📥 Process Files", type="secondary", width='stretch'):
                     raw = []
                     for name, obj in ingestion.process_uploaded_files(files):
                         parsed = ingestion.parse_bank_file(obj, filename=name)
@@ -200,7 +200,7 @@ elif nav == "Cashflow & Ledger":
                 with col_s1:
                     st.dataframe(
                         suggestions[['Description', 'Count', 'Total_Value', 'Example_Currency']],
-                        use_container_width=True,
+                        width='stretch',
                         selection_mode="single-row",
                         on_select="rerun",
                         key="suggestion_table"
@@ -231,7 +231,7 @@ elif nav == "Cashflow & Ledger":
 
             st.divider()
             st.markdown("#### 2. Detailed Uncategorized List")
-            st.dataframe(uncat[['Date', 'Description', 'Amount', 'Currency', 'Source']], use_container_width=True)
+            st.dataframe(uncat[['Date', 'Description', 'Amount', 'Currency', 'Source']], width='stretch')
         else:
             st.info("📂 No data loaded. Use the **📂 Ingestion** tab above to upload bank statements or add manual transactions.")
 
@@ -266,7 +266,7 @@ elif nav == "Cashflow & Ledger":
     # E. Raw Data
     with l_tabs[4]:
         if not st.session_state.ledger.empty:
-            st.dataframe(st.session_state.ledger.sort_values('Date', ascending=False), use_container_width=True)
+            st.dataframe(st.session_state.ledger.sort_values('Date', ascending=False), width='stretch')
         else:
             st.info("📂 No data loaded. Use the **📂 Ingestion** tab above to upload bank statements or add manual transactions.")
 
@@ -275,30 +275,44 @@ elif nav == "Investment Portfolio":
     st.header("📈 Investment Portfolio")
 
     with st.expander("Update Data"):
-        pf = st.file_uploader("Upload CSV", type=['csv'])
+        pf = st.file_uploader("Upload CSV (Holdings or History)", type=['csv'])
         if pf:
-            st.session_state.portfolio_metrics = portfolio.process_portfolio(pf)
-            st.session_state.portfolio_source = "📂 Uploaded"
-            st.rerun()
+            # Process and determine type automatically
+            metrics = portfolio.process_portfolio(pf)
+            if metrics:
+                st.session_state.portfolio_metrics = metrics
+                st.session_state.portfolio_source = f"📂 {pf.name}"
+                st.rerun()
 
     if p_metrics:
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total Value", f"{p_metrics['value']:,.0f} CZK")
-        m2.metric("Total Profit", f"{p_metrics['profit']:,.0f} CZK",
-                  delta=f"{(p_metrics['profit'] / p_metrics['cost'] * 100):.1f}%" if p_metrics['cost'] else None)
-        m3.metric("Projected Annual Income", f"{p_metrics['divs_projected']:,.0f} CZK", help="Yield * Current Value")
-        m4.metric("Portfolio Yield", f"{p_metrics['portfolio_yield']:.2f}%", help="Weighted Average")
+        # CHECK TYPE: SNAPSHOT vs HISTORY
+        p_type = p_metrics.get('type', 'snapshot')
 
-        st.divider()
-        visuals.render_portfolio_visuals(p_metrics)
-        st.markdown("<br>", unsafe_allow_html=True)
+        if p_type == 'snapshot':
+            # -- RENDER HOLDINGS DASHBOARD --
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Value", f"{p_metrics['value']:,.0f} CZK")
+            m2.metric("Total Profit", f"{p_metrics['profit']:,.0f} CZK",
+                      delta=f"{(p_metrics['profit'] / p_metrics['cost'] * 100):.1f}%" if p_metrics['cost'] else None)
+            m3.metric("Projected Annual Divs", f"{p_metrics['divs_projected']:,.0f} CZK")
+            m4.metric("Portfolio Yield", f"{p_metrics['portfolio_yield']:.2f}%")
 
-        st.subheader("Dividend Intelligence")
-        visuals.render_dividend_comparison(p_metrics['divs_earned'], p_metrics['divs_projected'])
+            st.divider()
+            visuals.render_portfolio_visuals(p_metrics)
 
-        st.divider()
-        st.subheader("Holdings")
-        st.dataframe(p_metrics['df'], use_container_width=True)
+            st.subheader("Dividend Intelligence")
+            visuals.render_dividend_comparison(p_metrics['divs_earned'], p_metrics['divs_projected'])
+
+            st.dataframe(p_metrics['df'], width='stretch')
+
+        elif p_type == 'history':
+            # -- RENDER HISTORY DASHBOARD --
+            st.info("🕒 History Mode: Showing Invested Capital & Dividend Trends over time.")
+            visuals.render_portfolio_visuals(p_metrics)
+
+            with st.expander("Raw Transaction Ledger"):
+                st.dataframe(p_metrics['raw'], width='stretch')
+
     else:
         c_info, c_btn = st.columns([3, 1])
         with c_info:
