@@ -2,96 +2,92 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- CONFIGURATION ---
 st.set_page_config(page_title="Family Office HQ", layout="wide")
 
 
-# --- LOGIC: BANK RECOGNITION ---
-def detect_bank_format(df):
-    cols = [c.lower() for c in df.columns]
+def detect_and_parse(file):
+    # Try comma first, then semicolon
+    try:
+        df = pd.read_csv(file)
+        if len(df.columns) < 2: raise ValueError
+    except:
+        file.seek(0)  # Reset file pointer for re-reading
+        df = pd.read_csv(file, sep=';')
 
-    # Example Logic (You will expand this)
-    if 'datum' in cols and 'částka' in cols:
-        return "Ceska Sporitelna / Local Bank"
-    elif 'transaction date' in cols and 'description' in cols:
-        return "Revolut / International"
+    cols = df.columns.tolist()
+
+    # Logic based on our 'Training' session
+    if 'Own account name' in cols and 'Note' in cols:
+        # CS Credit Card
+        parsed = pd.DataFrame({
+            'Date': pd.to_datetime(df['Processing Date'], dayfirst=True),
+            'Description': df['Partner Name'].fillna('') + " " + df['Note'].fillna(''),
+            'Amount': df['Amount'],
+            'Source': "ČS Credit Card"
+        })
+    elif 'Own account name' in cols:
+        # CS Bank Account
+        parsed = pd.DataFrame({
+            'Date': pd.to_datetime(df['Processing Date'], dayfirst=True),
+            'Description': df['Partner Name'].fillna(''),
+            'Amount': df['Amount'],
+            'Source': "ČS Current Account"
+        })
+    elif 'Datum provedení' in cols:
+        # RB Bank Account
+        amounts = df['Zaúčtovaná částka'].astype(str).str.replace(' ', '').str.replace(',', '.')
+        parsed = pd.DataFrame({
+            'Date': pd.to_datetime(df['Datum provedení'], dayfirst=True),
+            'Description': df['Název protiúčtu'].fillna('') + " " + df['Zpráva'].fillna(''),
+            'Amount': pd.to_numeric(amounts),
+            'Source': "RB Current Account"
+        })
+    elif 'Číslo kreditní karty' in cols:
+        # RB Credit Card
+        amounts = df['Zaúčtovaná částka'].astype(str).str.replace(' ', '').str.replace(',', '.')
+        parsed = pd.DataFrame({
+            'Date': pd.to_datetime(df['Datum transakce'], dayfirst=True),
+            'Description': df['Popis/Místo transakce'].fillna('') + " " + df['Název obchodníka'].fillna(''),
+            'Amount': pd.to_numeric(amounts),
+            'Source': "RB Credit Card"
+        })
     else:
-        return "Unknown Format"
-
-
-def process_ledger(df, bank_type):
-    # This standardizes different bank CSVs into your "Master Ledger" format
-    ledger = pd.DataFrame()
-
-    if bank_type == "Revolut / International":
-        ledger['Date'] = pd.to_datetime(df['Transaction Date'])
-        ledger['Amount'] = df['Amount']  # Assuming negative for spend
-        ledger['Description'] = df['Description']
-
-    elif bank_type == "Ceska Sporitelna / Local Bank":
-        ledger['Date'] = pd.to_datetime(df['Datum'], dayfirst=True)
-        ledger['Amount'] = df['Částka']
-        ledger['Description'] = df['Název protiúčtu'].fillna(df['Poznámka'])
-
-    else:
-        st.error("Bank format not supported yet.")
         return None
 
-    # Auto-Tagging Logic (Simple MVP Version)
-    ledger['Category'] = 'Uncategorized'
-    ledger.loc[ledger['Description'].str.contains('MORTGAGE|HYPOTEKA', case=False,
-                                                  na=False), 'Category'] = 'Fixed OPEX (Mortgage)'
-    ledger.loc[ledger['Description'].str.contains('LIDL|ALBERT|ROHLIK', case=False,
-                                                  na=False), 'Category'] = 'Living (Groceries)'
-    ledger.loc[ledger['Description'].str.contains('SHELL|OMV|BENZINA', case=False, na=False), 'Category'] = 'Fleet Fund'
-
-    return ledger
+    return parsed
 
 
-# --- UI: SIDEBAR ---
-st.sidebar.title(" CFO Controls")
-uploaded_file = st.sidebar.file_uploader("Upload Bank Statement (CSV)", type=['csv'])
+def auto_tag(row):
+    desc = str(row['Description']).lower()
+    if any(x in desc for x in ['albert', 'lidl', 'rohlik', 'globus', 'tesco', 'billa']):
+        return 'Living (Groceries)'
+    if any(x in desc for x in ['shell', 'omv', 'benzina', 'mol']):
+        return 'Fleet Fund (Fuel)'
+    if any(x in desc for x in ['hypoteka', 'mortgage']):
+        return 'Fixed OPEX (Mortgage)'
+    return 'Uncategorized'
 
-# --- UI: MAIN DASHBOARD ---
+
 st.title("Family Office Command Center")
+st.sidebar.header("Upload Statements")
+uploaded_files = st.sidebar.file_uploader("Upload CSVs", type=['csv'], accept_multiple_files=True)
 
-if uploaded_file is not None:
-    # 1. Read File
-    df_raw = pd.read_csv(uploaded_file)
-    st.write("### 1. Raw Data Detected")
-    st.dataframe(df_raw.head())
+if uploaded_files:
+    all_data = []
+    for f in uploaded_files:
+        parsed = detect_and_parse(f)
+        if parsed is not None:
+            all_data.append(parsed)
+            st.success(f"Loaded {f.name}")
 
-    # 2. Detect Bank
-    bank_type = detect_bank_format(df_raw)
-    st.info(f"Detected Bank Format: **{bank_type}**")
+    if all_data:
+        master_ledger = pd.concat(all_data).sort_values('Date', ascending=False)
+        master_ledger['Target Basin'] = master_ledger.apply(auto_tag, axis=1)
 
-    # 3. Process to Ledger
-    if bank_type != "Unknown Format":
-        ledger = process_ledger(df_raw, bank_type)
+        st.write("### Consolidated Reality")
+        st.dataframe(master_ledger)
 
-        # 4. Show Analysis
-        if ledger is not None:
-            col1, col2, col3 = st.columns(3)
-            total_spend = ledger[ledger['Amount'] < 0]['Amount'].sum()
-            total_income = ledger[ledger['Amount'] > 0]['Amount'].sum()
-
-            col1.metric("Total Income", f"{total_income:,.0f} CZK")
-            col2.metric("Total Spend", f"{total_spend:,.0f} CZK")
-            col3.metric("Net Flow", f"{total_income + total_spend:,.0f} CZK")
-
-            st.write("### 2. Auto-Categorized Ledger")
-            st.dataframe(ledger)
-
-            # 5. The Waterfall Visual
-            st.write("### 3. Spending Waterfall")
-            spending_by_cat = ledger[ledger['Amount'] < 0].groupby('Category')['Amount'].sum().abs().reset_index()
-
-            fig = go.Figure(go.Bar(
-                x=spending_by_cat['Amount'],
-                y=spending_by_cat['Category'],
-                orientation='h'
-            ))
-            st.plotly_chart(fig)
-
-else:
-    st.info("Waiting for Bank Statement... Upload CSV in the sidebar.")
+        # Dashboard Visual
+        spend = master_ledger[master_ledger['Amount'] < 0].groupby('Target Basin')['Amount'].sum().abs()
+        fig = go.Figure(data=[go.Pie(labels=spend.index, values=spend.values, hole=.3)])
+        st.plotly_chart(fig)
