@@ -1,41 +1,35 @@
 # config/settings.py
 
 # Default Portfolio File Path
-DEFAULT_PORTFOLIO_FILE = "Snowball Holdings.csv"
+DEFAULT_PORTFOLIO_FILE = "Snowball Holdings.csv"  # The Snapshot
+DEFAULT_HISTORY_FILE = "Snowball History.csv"     # The Transaction Log
 
-# 2. Analytics Mapping (Maps Category -> Fixed/Variable/Income)
-# This controls the "Fixed vs Variable" chart automatically
+# UI Categories for Manual Entry
+UI_CATEGORIES = {
+    "Income": ["Salary", "Dividends", "Business Income", "Refunds", "Other Income"],
+    "Expense": [
+        "Housing (Mortgage/Rent)", "Utilities", "Subscriptions", "Education", "Insurance",
+        "Groceries", "Dining Out", "Transport (Fuel/Taxi)", "Health & Wellness",
+        "Shopping", "Travel", "Services", "Family/Kids", "Other Expense"
+    ],
+    "Investment": ["Investment Deposit", "Investment Withdrawal"]
+}
+
+# Analytics Mapping (Category -> Type)
 CATEGORY_TYPE_MAP = {
-    # Income
     "Salary": "Income", "Dividends": "Income", "Business Income": "Income",
     "Refunds": "Income", "Other Income": "Income",
-
-    # Investment
     "Investment Deposit": "Investment", "Investment Withdrawal": "Investment",
-
-    # Fixed Expenses
-    "Housing (Mortgage/Rent)": "Fixed",
-    "Utilities": "Fixed",
-    "Subscriptions": "Fixed",
-    "Education": "Fixed",
-    "Insurance": "Fixed",
-
-    # Variable Expenses
-    "Groceries": "Variable",
-    "Dining Out": "Variable",
-    "Transport (Fuel/Taxi)": "Variable",
-    "Health & Wellness": "Variable",
-    "Shopping": "Variable",
-    "Travel": "Variable",
-    "Services": "Variable",
-    "Family/Kids": "Variable",
-    "Other Expense": "Variable",
-
-    # Default
+    "Housing (Mortgage/Rent)": "Fixed", "Utilities": "Fixed",
+    "Subscriptions": "Fixed", "Education": "Fixed", "Insurance": "Fixed",
+    "Groceries": "Variable", "Dining Out": "Variable",
+    "Transport (Fuel/Taxi)": "Variable", "Health & Wellness": "Variable",
+    "Shopping": "Variable", "Travel": "Variable", "Services": "Variable",
+    "Family/Kids": "Variable", "Other Expense": "Variable",
     "Uncategorized": "Variable"
 }
 
-# 3. Global Rules (Updated to match new Category names)
+# Global Categorization Rules
 GLOBAL_RULES = [
     {'pattern': 'Trading 212', 'target': 'Investment Deposit'},
     {'pattern': 'XTB', 'target': 'Investment Deposit'},

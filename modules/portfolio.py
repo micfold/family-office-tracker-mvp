@@ -8,19 +8,17 @@ FX_RATES = {'USD': 23.5, 'EUR': 25.2, 'GBP': 29.5, 'CZK': 1.0}
 
 
 def clean_snowball_number(val):
-    """Cleans Snowball export number format (e.g. '1,200.50' or '1.200,50')."""
+    """Cleans Snowball export number format."""
     if pd.isna(val): return 0.0
     s = str(val).replace('"', '').replace("'", "").strip()
     if not s: return 0.0
 
-    # Simple heuristic for mixed formats
     if ',' in s and '.' in s:
-        if s.find(',') > s.find('.'):  # Format: 1.000,00
+        if s.find(',') > s.find('.'):
             s = s.replace('.', '').replace(',', '.')
-        else:  # Format: 1,000.00
+        else:
             s = s.replace(',', '')
     elif ',' in s:
-        # If 2 digits after comma, assume decimal (EU style)
         if re.search(r',\d{2}$', s):
             s = s.replace(',', '.')
         else:
@@ -31,12 +29,12 @@ def clean_snowball_number(val):
 
 def process_portfolio(file):
     try:
+        # Reset file pointer to beginning
+        file.seek(0)
         df = pd.read_csv(file)
-
-        # 1. Detect Format based on columns
         cols = df.columns.tolist()
 
-        # A. TRANSACTION HISTORY FORMAT (The one causing error)
+        # A. TRANSACTION HISTORY FORMAT
         if 'Event' in cols and 'Date' in cols:
             return process_history(df)
 
@@ -45,7 +43,8 @@ def process_portfolio(file):
             return process_snapshot(df)
 
         else:
-            st.error("Unknown Portfolio CSV format. Need 'Event/Date' or 'Current value'.")
+            # st.error("Unknown Portfolio CSV format.")
+            # Silent fail preferred for auto-detect loops
             return None
 
     except Exception as e:
@@ -55,15 +54,10 @@ def process_portfolio(file):
 
 def process_snapshot(df):
     """Logic for Holdings Snapshot."""
-    numeric_cols = [
-        'Current value', 'Cost basis', 'Total profit', 'Div. received',
-        'Dividend yield', 'Next payment', 'Shares', 'Share price'
-    ]
+    numeric_cols = ['Current value', 'Cost basis', 'Total profit', 'Div. received', 'Dividend yield']
     for col in numeric_cols:
-        if col in df.columns:
-            df[col] = df[col].apply(clean_snowball_number)
+        if col in df.columns: df[col] = df[col].apply(clean_snowball_number)
 
-    # Derived Metrics
     if 'Current value' in df.columns and 'Dividend yield' in df.columns:
         df['Projected Annual Divs'] = df['Current value'] * (df['Dividend yield'] / 100)
     else:
@@ -87,21 +81,16 @@ def process_snapshot(df):
 
 def process_history(df):
     """Logic for Transaction History."""
-    # Clean Data
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     df = df.sort_values('Date').copy()
 
-    # Numeric Cleanup
     for col in ['Price', 'Quantity', 'FeeTax']:
-        if col in df.columns:
-            df[col] = df[col].apply(clean_snowball_number)
+        if col in df.columns: df[col] = df[col].apply(clean_snowball_number)
 
-    # --- 1. CALCULATE INVESTED CAPITAL CURVE ---
     history_rows = []
-    current_holdings = {}  # {Symbol: {'qty': 0, 'total_cost': 0}}
+    current_holdings = {}
     cumulative_invested_czk = 0.0
 
-    # Pre-calculate FX normalized amounts
     df['FX'] = df['Currency'].map(FX_RATES).fillna(1.0)
     df['AmountCZK'] = df['Price'] * df['Quantity'] * df['FX']
 
@@ -112,38 +101,34 @@ def process_history(df):
         amt_czk = row['AmountCZK']
 
         if event == 'BUY':
-            if symbol not in current_holdings: current_holdings[symbol] = {'qty': 0.0, 'total_cost': 0.0}
+            if symbol not in current_holdings: current_holdings[symbol] = {'qty': 0.0, 'cost': 0.0}
             current_holdings[symbol]['qty'] += qty
-            current_holdings[symbol]['total_cost'] += amt_czk
+            current_holdings[symbol]['cost'] += amt_czk
             cumulative_invested_czk += amt_czk
 
         elif event == 'SELL':
             if symbol in current_holdings and current_holdings[symbol]['qty'] > 0:
-                avg_cost = current_holdings[symbol]['total_cost'] / current_holdings[symbol]['qty']
+                avg_cost = current_holdings[symbol]['cost'] / current_holdings[symbol]['qty']
                 cost_of_sold = avg_cost * qty
                 current_holdings[symbol]['qty'] -= qty
-                current_holdings[symbol]['total_cost'] -= cost_of_sold
+                current_holdings[symbol]['cost'] -= cost_of_sold
                 cumulative_invested_czk -= cost_of_sold
                 if cumulative_invested_czk < 0: cumulative_invested_czk = 0
 
-        history_rows.append({
-            'Date': row['Date'],
-            'Invested Capital': cumulative_invested_czk
-        })
+        history_rows.append({'Date': row['Date'], 'Invested Capital': cumulative_invested_czk})
 
     history_df = pd.DataFrame(history_rows).drop_duplicates('Date', keep='last')
 
-    # --- 2. DIVIDEND ANALYSIS ---
+    # Dividend Analysis
     div_mask = df['Event'].str.upper().str.contains('DIV')
     div_df = df[div_mask].copy()
-    div_df['DividendCZK'] = div_df['AmountCZK']  # Assuming Price column holds Div Amount in export
+    div_df['DividendCZK'] = div_df['AmountCZK']
 
     div_df['Year'] = div_df['Date'].dt.year
     div_df['Quarter'] = div_df['Date'].dt.to_period('Q').astype(str)
 
     annual_divs = div_df.groupby('Year')['DividendCZK'].sum().reset_index()
     quarterly_divs = div_df.groupby('Quarter')['DividendCZK'].sum().reset_index()
-
     total_divs = div_df['DividendCZK'].sum()
 
     return {
@@ -152,14 +137,11 @@ def process_history(df):
         "history_df": history_df,
         "annual_divs": annual_divs,
         "quarterly_divs": quarterly_divs,
-        "total_invested": cumulative_invested_czk,
 
-        # --- FIX: Standardize Keys for App Compatibility ---
-        "value": cumulative_invested_czk,  # PROXY: Use Invested Capital as Value
-        "cost": cumulative_invested_czk,
-        "profit": 0.0,  # Cannot calc Profit without Market Price
-        "divs_earned": total_divs,  # Map to standard key
-        "divs_projected": 0.0,  # Cannot calc Yield without Holdings
-        "portfolio_yield": 0.0,
-        "top_10": pd.DataFrame()
+        # Standardized Keys
+        "total_invested": cumulative_invested_czk,
+        "divs_earned": total_divs,  # Fixed Key
+
+        # Proxy values for UI compatibility if Snapshot missing
+        "value_proxy": cumulative_invested_czk
     }
