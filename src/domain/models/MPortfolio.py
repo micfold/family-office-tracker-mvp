@@ -14,15 +14,19 @@ class InvestmentPosition(BaseModel):
     name: str  # e.g., "Vanguard FTSE All-World"
     quantity: Decimal
     owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+    sector: Optional[str] = None
 
     # Valuation
     current_price: Decimal
-    cost_basis: Decimal  # Average buy price
-    currency: Currency
+    cost_basis: Decimal  # Total Cost (or Avg Price * Qty)
+    market_value: Decimal  # Current Value
+    gain_loss: Decimal  # Value - Cost
 
-    # Derived metrics (can be calculated properties or stored)
-    current_value_local: Decimal
-    current_value_czk: Decimal  # Normalized value
+    # Income
+    dividend_yield_projected: Decimal = Decimal(0)  # Percentage
+    projected_annual_income: Decimal = Decimal(0)
+
+    currency: Currency = Currency.CZK
 
 
 class InvestmentEvent(BaseModel):
@@ -33,7 +37,20 @@ class InvestmentEvent(BaseModel):
     event_type: str  # "BUY", "SELL", "DIVIDEND"
     quantity: Optional[Decimal] = None
     price_per_share: Optional[Decimal] = None
-    total_amount: Decimal  # The actual cash impact
+    total_amount: Decimal  # The actual cash impact (Cost for Buy, Proceeds for Sell)
     currency: Currency
     fee: Decimal = Decimal(0)
     owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+
+
+class PortfolioMetrics(BaseModel):
+    """Aggregated KPIs for the dashboard."""
+    total_value: Decimal = Decimal(0)
+    total_invested: Decimal = Decimal(0)
+    total_profit: Decimal = Decimal(0)
+    total_profit_pct: Decimal = Decimal(0)
+
+    # Dividend specifics
+    realized_dividends_all_time: Decimal = Decimal(0)
+    projected_annual_dividends: Decimal = Decimal(0)
+    yield_on_cost: Decimal = Decimal(0)

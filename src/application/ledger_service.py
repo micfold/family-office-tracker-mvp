@@ -12,16 +12,17 @@ from src.core.parsers import process_uploaded_files
 from config import GLOBAL_RULES, CATEGORY_TYPE_MAP
 
 
+def _get_user_id() -> UUID:
+    return UUID(st.session_state["user"]["id"])
+
+
 class LedgerService:
     def __init__(self, repo: TransactionRepository):
         self.repo = repo
 
-    def _get_user_id(self) -> UUID:
-        return UUID(st.session_state["user"]["id"])
-
     def get_recent_transactions(self) -> pd.DataFrame:
         """Returns DF for the UI Grid."""
-        return self.repo.get_as_dataframe(self._get_user_id())
+        return self.repo.get_as_dataframe(_get_user_id())
 
     def get_batch_history(self) -> pd.DataFrame:
         """Analytics on uploads."""
@@ -42,7 +43,7 @@ class LedgerService:
         Orchestrates: Parse -> Categorize -> Save
         Returns: (processed_count, duplicates_skipped) - logic handled by repo mostly
         """
-        user_id = self._get_user_id()
+        user_id = _get_user_id()
         batch_id = f"Import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         transactions_to_save = []
@@ -82,12 +83,12 @@ class LedgerService:
     def add_manual_transaction(self, data: dict):
         tx = Transaction(
             **data,
-            owner=self._get_user_id()
+            owner=_get_user_id()
         )
         self.repo.save_bulk([tx])
 
     def delete_batch(self, batch_id: str):
-        self.repo.delete_batch(batch_id, self._get_user_id())
+        self.repo.delete_batch(batch_id, _get_user_id())
 
     def _apply_rules(self, description: str, amount: float) -> Tuple[str, str]:
         """Categorization Engine."""
