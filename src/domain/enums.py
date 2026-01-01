@@ -14,7 +14,7 @@ class AssetCategory(str, Enum):
     EQUITY = "Equity"
 
 
-class TransactionType(Enum):
+class TransactionType(str, Enum):
     INCOME = "Income"
     EXPENSE = "Expense"
     INVESTMENT = "Investment"

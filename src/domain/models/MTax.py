@@ -5,7 +5,7 @@ from typing import Optional
 import streamlit as st
 from uuid import UUID, uuid4
 
-
+# TODO: Implement tax lot tracking and optimization logic
 class TaxLot(BaseModel):
     """
     Tracks a specific purchase of an asset for tax purposes.

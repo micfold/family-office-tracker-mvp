@@ -1,32 +1,27 @@
+# src/domain/models/MTransaction.py
+from typing import Optional
 from uuid import UUID, uuid4
 from datetime import date
 from decimal import Decimal
-from typing import Optional
-from pydantic import BaseModel, Field
-import streamlit as st
+from sqlmodel import SQLModel, Field
 from src.domain.enums import TransactionType, Currency
 
 
-class Transaction(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    date: date
+class Transaction(SQLModel, table=True):
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date = Field(index=True)  # Indexed for sorting/filtering by date
     description: str
-    amount: Decimal
-    currency: Currency = Currency.CZK
-    owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+    amount: Decimal = Field(default=0, max_digits=20, decimal_places=2)
+    currency: Currency = Field(default=Currency.CZK)
+    owner: UUID = Field(index=True)
 
-    # Categorization
-    type: TransactionType
-    category: str  # Kept as string for flexibility, or use ExpenseCategory enum
+    transaction_type: TransactionType
+    category: str
 
-    # Banking Metadata
     source_account: Optional[str] = None
     target_account: Optional[str] = None
-    batch_id: str  # Links to the import batch (e.g. "Import_20240101")
+    batch_id: str = Field(index=True)  # Indexed for "Delete Batch"
 
     @property
     def is_expense(self) -> bool:
         return self.amount < 0
-
-    class Config:
-        from_attributes = True

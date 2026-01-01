@@ -1,56 +1,48 @@
+# src/domain/models/MPortfolio.py
 from uuid import UUID, uuid4
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field
+from sqlmodel import SQLModel, Field
 from src.domain.enums import Currency
-import streamlit as st
 
-
-class InvestmentPosition(BaseModel):
-    """Represents a current holding (Snapshot)."""
-    id: UUID = Field(default_factory=uuid4)
-    ticker: str  # e.g., "VWCE"
-    name: str  # e.g., "Vanguard FTSE All-World"
-    quantity: Decimal
-    owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+class InvestmentPosition(SQLModel, table=True):
+    """Snapshot of current holdings."""
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    ticker: str = Field(index=True)
+    name: str
+    quantity: Decimal = Field(max_digits=20, decimal_places=6)
+    owner: UUID = Field(index=True)
     sector: Optional[str] = None
 
-    # Valuation
-    current_price: Decimal
-    cost_basis: Decimal  # Total Cost (or Avg Price * Qty)
-    market_value: Decimal  # Current Value
-    gain_loss: Decimal  # Value - Cost
+    current_price: Decimal = Field(max_digits=20, decimal_places=4)
+    cost_basis: Decimal = Field(max_digits=20, decimal_places=2)
+    market_value: Decimal = Field(max_digits=20, decimal_places=2)
+    gain_loss: Decimal = Field(max_digits=20, decimal_places=2)
 
-    # Income
-    dividend_yield_projected: Decimal = Decimal(0)  # Percentage
-    projected_annual_income: Decimal = Decimal(0)
+    dividend_yield_projected: Decimal = Field(default=0, max_digits=10, decimal_places=4)
+    projected_annual_income: Decimal = Field(default=0, max_digits=20, decimal_places=2)
+    currency: Currency = Field(default=Currency.CZK)
 
-    currency: Currency = Currency.CZK
-
-
-class InvestmentEvent(BaseModel):
-    """Represents a Buy/Sell/Dividend event (History)."""
-    id: UUID = Field(default_factory=uuid4)
-    date: datetime
-    ticker: str
-    event_type: str  # "BUY", "SELL", "DIVIDEND"
-    quantity: Optional[Decimal] = None
-    price_per_share: Optional[Decimal] = None
-    total_amount: Decimal  # The actual cash impact (Cost for Buy, Proceeds for Sell)
+class InvestmentEvent(SQLModel, table=True):
+    """History log (Buy/Sell/Div)."""
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: datetime = Field(index=True)
+    ticker: str = Field(index=True)
+    event_type: str
+    quantity: Optional[Decimal] = Field(default=None, max_digits=20, decimal_places=6)
+    price_per_share: Optional[Decimal] = Field(default=None, max_digits=20, decimal_places=4)
+    total_amount: Decimal = Field(max_digits=20, decimal_places=2)
     currency: Currency
-    fee: Decimal = Decimal(0)
-    owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+    fee: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+    owner: UUID = Field(index=True)
 
-
-class PortfolioMetrics(BaseModel):
-    """Aggregated KPIs for the dashboard."""
-    total_value: Decimal = Decimal(0)
-    total_invested: Decimal = Decimal(0)
-    total_profit: Decimal = Decimal(0)
-    total_profit_pct: Decimal = Decimal(0)
-
-    # Dividend specifics
-    realized_dividends_all_time: Decimal = Decimal(0)
-    projected_annual_dividends: Decimal = Decimal(0)
-    yield_on_cost: Decimal = Decimal(0)
+# Metrics stays as a data container
+class PortfolioMetrics(SQLModel):
+    total_value: Decimal = 0
+    total_invested: Decimal = 0
+    total_profit: Decimal = 0
+    total_profit_pct: Decimal = 0
+    realized_dividends_all_time: Decimal = 0
+    projected_annual_dividends: Decimal = 0
+    yield_on_cost: Decimal = 0

@@ -1,13 +1,13 @@
 import streamlit as st
 import plotly.express as px
-from src.domain.repositories.csv_portfolio_repository import CsvPortfolioRepository
+from src.domain.repositories.sql_repository import SqlPortfolioRepository
 from src.application.portfolio_service import PortfolioService
 
 
 def render_view():
     st.title("📈 Investment Portfolio")
 
-    repo = CsvPortfolioRepository()
+    repo = SqlPortfolioRepository()
     service = PortfolioService(repo)
 
     # 1. Uploaders

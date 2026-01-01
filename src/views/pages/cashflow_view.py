@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from src.application.ledger_service import LedgerService
-from src.domain.repositories.csv_ledger_repository import CsvTransactionRepository
+from src.domain.repositories.sql_repository import SqlTransactionRepository
 from src.domain.enums import CATEGORY_METADATA, TransactionType
 from config import UI_CATEGORIES
 
@@ -69,7 +69,7 @@ def render_view():
     st.title("💸 Cashflow & Ledger (Refactored)")
 
     # Dependency Injection
-    repo = CsvTransactionRepository()
+    repo = SqlTransactionRepository()
     service = LedgerService(repo)
 
     # Load Data

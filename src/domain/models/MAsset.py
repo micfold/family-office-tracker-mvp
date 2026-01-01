@@ -1,32 +1,22 @@
+# src/domain/models/MAsset.py
+from typing import Optional
 from uuid import UUID, uuid4
 from decimal import Decimal
-from typing import Optional
-from pydantic import BaseModel, Field
-import streamlit as st
+from sqlmodel import SQLModel, Field
 from src.domain.enums import AssetCategory, Currency
 
-
-class Asset(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str  # e.g., "Property & Land", "BMW X5", "Emergency Fund"
+class Asset(SQLModel, table=True):
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    name: str
     category: AssetCategory
-    value: Decimal
-    currency: Currency = Currency.CZK
-
-    # Optional: For tracking ownership or specific location data later
-    owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+    # SQLModel stores Decimal as numeric; ensuring correct scale in Postgres later
+    value: Decimal = Field(default=0, max_digits=20, decimal_places=2)
+    currency: Currency = Field(default=Currency.CZK)
+    owner: UUID = Field(index=True) # Indexed for faster "get_user_assets" queries
     description: Optional[str] = None
 
-    class Config:
-        # This allows the model to work easily with ORMs later
-        from_attributes = True
-
-
-class NetWorthSnapshot(BaseModel):
-    """
-    Represents the calculated totals for a specific point in time.
-    Used for the Dashboard view.
-    """
+# NetWorthSnapshot is NOT a table, it's just a UI Data Class, so it stays Pydantic (or SQLModel without table=True)
+class NetWorthSnapshot(SQLModel):
     total_assets: Decimal
     total_liabilities: Decimal
     net_worth: Decimal

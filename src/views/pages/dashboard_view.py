@@ -8,8 +8,11 @@ from src.application.portfolio_service import PortfolioService
 
 # Import Repos (Construction)
 from src.core.json_impl import JsonAssetRepository
-from src.domain.repositories.csv_ledger_repository import CsvTransactionRepository
-from src.domain.repositories.csv_portfolio_repository import CsvPortfolioRepository
+from src.domain.repositories.sql_repository import SqlTransactionRepository
+led_svc = LedgerService(SqlTransactionRepository())
+
+from src.domain.repositories.sql_repository import SqlPortfolioRepository
+port_svc = PortfolioService(SqlPortfolioRepository())
 
 
 def render_view():
@@ -18,8 +21,8 @@ def render_view():
     # 1. Initialize Services
     # In a full framework, this dependency injection is handled automatically
     as_svc = AssetService(JsonAssetRepository())
-    led_svc = LedgerService(CsvTransactionRepository())
-    port_svc = PortfolioService(CsvPortfolioRepository())
+    led_svc = LedgerService(SqlTransactionRepository())
+    port_svc = PortfolioService(SqlPortfolioRepository())
 
     # 2. Fetch Data
     # A. Net Worth Components
