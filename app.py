@@ -3,7 +3,8 @@ import streamlit as st
 from services.auth import AuthService
 from services.ledger import LedgerService
 from services.portfolio import PortfolioService
-from views import dashboard, assets, cashflow, portfolio
+from pages import portfolio
+from pages import dashboard, cashflow, assets
 
 # Page Config
 st.set_page_config(page_title="Family Office HQ", layout="wide", page_icon="🏛️")
@@ -91,3 +92,6 @@ elif nav == "Cashflow":
     cashflow.render_view()
 elif nav == "Portfolio":
     portfolio.render_view()
+
+
+

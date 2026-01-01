@@ -3,6 +3,7 @@ import streamlit as st
 import json
 import hashlib
 from pathlib import Path
+from uuid import uuid4
 
 DATA_ROOT = Path("data")
 USERS_FILE = DATA_ROOT / "users.json"
@@ -25,6 +26,9 @@ class AuthService:
     def _hash_password(self, password: str) -> str:
         return hashlib.sha256(password.encode()).hexdigest()
 
+    def _hash_username(self, username: str) -> str:
+        return hashlib.sha256(username.encode()).hexdigest()
+
     # ---------- public API ----------
 
     def login(self, username: str, password: str) -> bool:
@@ -35,15 +39,21 @@ class AuthService:
         users = self._load_users()
         password_hash = self._hash_password(password)
 
+        user_id = None
         # User exists → verify password
         if clean_name in users:
             if users[clean_name]["password"] != password_hash:
                 return False
+            user_id = users[clean_name].get("id", str(uuid4()))
+            users[clean_name]["id"] = user_id
+            self._save_users(users)
         else:
             # Create new user (remove this block if you want login-only)
+            user_id = str(uuid4())
             users[clean_name] = {
-                "username": username,
-                "password": password_hash
+                "username": self._hash_username(clean_name),
+                "password": password_hash,
+                "id": user_id
             }
             self._save_users(users)
 
@@ -53,7 +63,7 @@ class AuthService:
 
         st.session_state["user"] = {
             "username": username,
-            "id": clean_name,
+            "id": user_id,
             "path": user_path
         }
         return True

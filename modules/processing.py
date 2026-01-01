@@ -1,7 +1,7 @@
 # modules/processing.py
 import pandas as pd
-from core.config import CATEGORY_TYPE_MAP
-from core.enums import TransactionType
+from config import CATEGORY_TYPE_MAP
+
 
 def apply_categorization(df, rules, user_overrides=None):
     if df.empty: return df

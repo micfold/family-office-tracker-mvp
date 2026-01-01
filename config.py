@@ -1,4 +1,4 @@
-from core.enums import TransactionType, ExpenseCategory, IncomeCategory, TransferCategory, InvestmentCategory
+from src.domain.enums import TransactionType, ExpenseCategory, IncomeCategory, TransferCategory, InvestmentCategory
 
 # Default Filenames
 DEFAULT_PORTFOLIO_FILE = "Snowball Holdings.csv"

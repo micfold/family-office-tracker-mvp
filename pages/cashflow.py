@@ -3,10 +3,8 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from services.ledger import LedgerService
-from core.enums import CATEGORY_METADATA, TransactionType
-from core.config import UI_CATEGORIES
-from modules import analytics, processing
-from components import visuals
+from src.domain.enums import CATEGORY_METADATA
+from config import UI_CATEGORIES
 
 
 def render_view():

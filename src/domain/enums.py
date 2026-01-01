@@ -1,5 +1,18 @@
 from enum import Enum, auto
 
+class Currency(str, Enum):
+    CZK = "CZK"
+    USD = "USD"
+    EUR = "EUR"
+    GBP = "GBP"
+
+
+class AssetCategory(str, Enum):
+    REAL_ESTATE = "Real Estate"
+    VEHICLE = "Vehicle"
+    CASH = "Cash"
+    EQUITY = "Equity"
+
 
 class TransactionType(Enum):
     INCOME = "Income"
@@ -12,9 +25,11 @@ class ExpenseType(Enum):
     FIXED = "Fixed"
     VARIABLE = "Variable"
 
+
 class InvestmentCategory(Enum):
     DEPOSIT = "Investment Deposit"
     WITHDRAWAL = "Investment Withdrawal"
+
 
 class TransferCategory(Enum):
     INTERNAL = "Internal Transfer"
@@ -32,6 +47,7 @@ class ExpenseCategory(Enum):
     TRAVEL = "Travel"
     EDUCATION = "Education"
     OTHER = "Other Expense"
+
 
 class TransportSubcategory(Enum):
     FUEL = "Fuel"
@@ -51,13 +67,6 @@ class IncomeCategory(Enum):
     BUSINESS = "Business Income"
     REFUNDS = "Refunds"
     OTHER = "Other Income"
-
-
-class AssetCategory(Enum):
-    REAL_ESTATE = "Real Estate"
-    VEHICLE = "Vehicle"
-    CASH = "Cash"
-    EQUITY = "Equity"
 
 CATEGORY_METADATA = {
     # Expense Categories mapped to Expense Types and Transaction Classes

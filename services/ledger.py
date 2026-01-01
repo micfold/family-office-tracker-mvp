@@ -5,10 +5,10 @@ from pathlib import Path
 import pandas as pd
 import json
 from services.auth import AuthService
-from core.config import GLOBAL_RULES
-from core.enums import TransactionType
+from config import GLOBAL_RULES
+from src.domain.enums import TransactionType
 from modules import processing, ingestion
-from core.config import GLOBAL_RULES as INITIAL_RULES
+from config import GLOBAL_RULES as INITIAL_RULES
 
 
 class LedgerService:
