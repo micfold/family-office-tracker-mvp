@@ -3,23 +3,27 @@ import pandas as pd
 from core.config import CATEGORY_TYPE_MAP
 from core.enums import TransactionType
 
-def apply_categorization(df, global_rules, user_rules):
+def apply_categorization(df, rules, user_overrides=None):
     if df.empty: return df
-
     df['Category'] = 'Uncategorized'
 
-    # 1. Apply Global Rules
-    sorted_global = sorted(global_rules, key=lambda x: len(x['pattern']), reverse=True)
-    for rule in sorted_global:
-        mask = df['Description'].str.lower().str.contains(rule['pattern'].lower(), na=False)
-        df.loc[mask, 'Category'] = rule['category']
+    # Combine and sort rules by pattern length (longest first for specificity)
+    all_rules = rules + (user_overrides if user_overrides else [])
+    sorted_rules = sorted(all_rules, key=lambda x: len(x.get('pattern', '')), reverse=True)
 
-    # 2. Apply User Rules (Override Global)
-    if user_rules:
-        sorted_user = sorted(user_rules, key=lambda x: len(x['pattern']), reverse=True)
-        for rule in sorted_user:
-            mask = df['Description'].str.lower().str.contains(rule['pattern'].lower(), na=False)
-            df.loc[mask, 'Category'] = rule['target']
+    for rule in sorted_rules:
+        # Support both 'category' (global) and 'target' (user) keys for compatibility
+        cat = rule.get('category') or rule.get('target')
+        mask = df['Description'].str.lower().str.contains(rule['pattern'].lower(), na=False)
+
+        # Apply directionality if specified
+        if 'direction' in rule:
+            if rule['direction'] == 'positive':
+                mask &= (df['Amount'] > 0)
+            elif rule['direction'] == 'negative':
+                mask &= (df['Amount'] < 0)
+
+        df.loc[mask, 'Category'] = cat
 
     # 3. Map Types (Fixed vs Variable)
     df['Type'] = df['Category'].map(CATEGORY_TYPE_MAP).fillna('Variable')

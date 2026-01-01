@@ -1,10 +1,14 @@
 # services/ledger.py
+from datetime import datetime
+from pathlib import Path
+
 import pandas as pd
 import json
 from services.auth import AuthService
 from core.config import GLOBAL_RULES
 from core.enums import TransactionType
 from modules import processing, ingestion
+from core.config import GLOBAL_RULES as INITIAL_RULES
 
 
 class LedgerService:
@@ -13,19 +17,94 @@ class LedgerService:
         self.filename = "ledger.csv"
         self.rules_filename = "user_rules.json"
 
+        # System-wide rules stored in the root data folder
+        self.global_rules_path = Path("data/global_rules.json")
+        self._ensure_global_rules()
+
+    def _ensure_global_rules(self):
+        """Initializes global_rules.json if it doesn't exist."""
+        if not self.global_rules_path.exists():
+            self.global_rules_path.parent.mkdir(exist_ok=True)
+            self.global_rules_path.write_text(json.dumps(INITIAL_RULES, indent=2))
+
+    def load_global_rules(self):
+        """Loads system-wide rules."""
+        try:
+            return json.loads(self.global_rules_path.read_text())
+        except Exception:
+            return INITIAL_RULES
+
+    def save_global_rules(self, rules):
+        """Saves system-wide rules (Admin logic)."""
+        self.global_rules_path.write_text(json.dumps(rules, indent=2))
+
+    def get_all_active_rules(self):
+        """Merges global and user-specific rules for processing."""
+        return self.load_global_rules() + self.load_user_rules()
+
+    def load_all_rules(self):
+        """Merges system global rules with user-specific rules."""
+        global_rules = []
+        if self.global_rules_path.exists():
+            global_rules = json.loads(self.global_rules_path.read_text())
+
+        user_rules = self.load_user_rules()
+        return global_rules + user_rules
+
     def load_ledger(self):
-        """Loads the user's ledger file."""
+        """Loads the user's ledger file and ensures required columns exist."""
         path = self.auth.get_file_path(self.filename)
+
+        # Extended schema to include Batch_ID
+        required_cols = [
+            'Date', 'Description', 'Amount', 'Currency',
+            'Category', 'Type', 'Source', 'Source_Account', 'Target_Account', 'Batch_ID'
+        ]
+
         if path.exists():
             df = pd.read_csv(path)
             df['Date'] = pd.to_datetime(df['Date'])
+
+            # Backfill missing columns for legacy data
+            for col in required_cols:
+                if col not in df.columns:
+                    if col == 'Batch_ID':
+                        df[col] = 'Legacy'
+                    else:
+                        df[col] = ""
+
             return df
-        return pd.DataFrame(columns=['Date', 'Description', 'Amount', 'Currency', 'Category', 'Type', 'Source'])
+
+        return pd.DataFrame(columns=required_cols)
 
     def save_ledger(self, df):
         """Saves the ledger to disk."""
         path = self.auth.get_file_path(self.filename)
         df.to_csv(path, index=False)
+
+    def get_batch_history(self):
+        """Returns statistics for each upload batch."""
+        df = self.load_ledger()
+        if df.empty or 'Batch_ID' not in df.columns:
+            return pd.DataFrame()
+
+        # Group by Batch_ID to calculate stats
+        stats = df.groupby('Batch_ID').agg(
+            Upload_Date=('Date', 'max'),  # Proxy for when it happened if not stored separate
+            Tx_Count=('Amount', 'count'),
+            Total_In=('Amount', lambda x: x[x > 0].sum()),
+            Total_Out=('Amount', lambda x: x[x < 0].sum())
+        ).reset_index()
+
+        # Filter out empty or weird batches
+        return stats.sort_values('Upload_Date', ascending=False)
+
+    def delete_batch(self, batch_id):
+        """Deletes all transactions associated with a Batch ID."""
+        df = self.load_ledger()
+        if 'Batch_ID' in df.columns:
+            df = df[df['Batch_ID'] != batch_id]
+            self.save_ledger(df)
 
     def load_user_rules(self):
         """Loads user-defined categorization rules."""
@@ -66,52 +145,42 @@ class LedgerService:
 
         # 2. Default Fallback
         return "Uncategorized", TransactionType.EXPENSE if amount < 0 else TransactionType.INCOME
+
     def process_upload(self, uploaded_files, user_rules=None):
         """
-        Parses and categorizes bank statements.
-        Accepts user_rules to override global defaults.
+        Parses and categorizes bank statements, tagging them with a Batch ID.
         """
-
-        # Load rules if not provided
         if user_rules is None:
             user_rules = self.load_user_rules()
 
+        active_rules = self.load_global_rules() + user_rules  # Use merged rules
+
         new_txs = []
-        report = []
+
+        # Generate a unique Batch ID for this specific upload session
+        batch_id = f"Import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         for filename, df, error in ingestion.process_uploaded_files(uploaded_files):
-            stats = {'file': filename, 'rows': 0, 'min': '-', 'max': '-', 'error': None}
+            if not error and df is not None and not df.empty:
+                # Tag rows with the Batch ID
+                df['Batch_ID'] = batch_id
 
-            if error:
-                stats['error'] = error
-            elif df is not None:
-                stats['rows'] = len(df)
-                if not df.empty:
-                    stats['min'] = df['Date'].min().strftime('%Y-%m-%d')
-                    stats['max'] = df['Date'].max().strftime('%Y-%m-%d')
-
-                # Categorize immediately
-                for idx, row in df.iterrows():
-                    cat, t_type = self.categorize_transaction(row['Description'], row['Amount'])
-                    df.at[idx, 'Category'] = cat.value if hasattr(cat, 'value') else cat
-                    df.at[idx, 'Type'] = t_type.value if hasattr(t_type, 'value') else t_type
+                # Tag missing columns to ensure concatenation works
+                for col in ['Source_Account', 'Target_Account']:
+                    if col not in df.columns:
+                        df[col] = ""
 
                 new_txs.append(df)
-            else:
-                stats['error'] = "No data extracted."
-
-            report.append(stats)
 
         if not new_txs:
             return pd.DataFrame()
 
-        full_df = pd.concat(new_txs)
+        new_df = pd.concat(new_txs)
 
-        # USE THE PROCESSING MODULE FOR CATEGORIZATION
-        # This ensures we use the exact logic from Master
-        full_df = processing.apply_categorization(full_df, GLOBAL_RULES, user_rules)
+        # Apply Categorization
+        new_df = processing.apply_categorization(new_df, active_rules, [])
 
-        return full_df
+        return new_df
 
 def _parse_csv(file_obj):
     """Helper to parse generic bank CSVs."""

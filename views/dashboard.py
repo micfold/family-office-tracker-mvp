@@ -2,7 +2,7 @@
 import streamlit as st
 from services.ledger import LedgerService
 from services.portfolio import PortfolioService
-from services.assets import AssetsService  # <--- NEW
+from services.assets import AssetsService
 from modules import analytics
 from components import visuals
 
@@ -13,14 +13,14 @@ def render_view():
     # Initialize Services
     ls = LedgerService()
     ps = PortfolioService()
-    as_svc = AssetsService()  # <--- NEW
+    as_svc = AssetsService()
 
     # Load Data
     ledger = ls.load_ledger()
     port_data = ps.load_data()
-    assets = as_svc.load_assets()  # <--- NEW
+    assets = as_svc.load_assets()
 
-    # --- 1. METRICS CALCULATION (Restored from Master) ---
+    # --- METRICS CALCULATION ---
     # Cash: Sum of physical cash wallets + ledger balance proxy
     physical_cash = sum(assets.get("Cash", {}).values())
 
@@ -38,12 +38,16 @@ def render_view():
         investments = port_data['history']['value_proxy']
 
     # Hard Assets
-    real_estate = assets.get("Real Estate", 0)
+    re_entry = assets.get("Real Estate", 0)
+    if isinstance(re_entry, dict):
+        real_estate_total = sum(re_entry.values())
+    else:
+        real_estate_total = re_entry
     vehicles = assets.get("Vehicles", 0)
     liabilities = assets.get("Mortgage", 0)
 
     # Net Worth
-    total_assets = total_cash + investments + real_estate + vehicles
+    total_assets = total_cash + investments + real_estate_total + vehicles
     net_worth = total_assets - liabilities
 
     # --- TOP ROW METRICS ---
@@ -55,7 +59,7 @@ def render_view():
 
     st.divider()
 
-    # --- 2. CASHFLOW ANALYTICS ---
+    # --- CASHFLOW ANALYTICS ---
     if not ledger.empty:
         st.subheader("Cashflow Performance")
 

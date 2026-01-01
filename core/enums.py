@@ -60,23 +60,26 @@ class AssetCategory(Enum):
     EQUITY = "Equity"
 
 CATEGORY_METADATA = {
-    ExpenseCategory.HOUSING: {"type": "Fixed", type: "Expense"},
-    ExpenseCategory.UTILITIES: {"type": "Fixed"},
-    ExpenseCategory.GROCERIES: {"type": "Variable"},
-    ExpenseCategory.TRANSPORT: {"type": "Variable"},
-    ExpenseCategory.SHOPPING: {"type": "Variable"},
-    ExpenseCategory.HEALTH: {"type": "Variable"},
-    ExpenseCategory.SUBSCRIPTIONS: {"type": "Variable"},
-    ExpenseCategory.TRAVEL: {"type": "Variable"},
-    ExpenseCategory.EDUCATION: {"type": "Variable"},
-    ExpenseCategory.OTHER: {"type": "Variable"},
-    IncomeCategory.SALARY: {"recurring": True},
-    IncomeCategory.DIVIDENDS: {"recurring": True},
-    IncomeCategory.BUSINESS: {"recurring": False},
-    IncomeCategory.REFUNDS: {"recurring": False},
-    IncomeCategory.OTHER: {"recurring": False},
-    AssetCategory.REAL_ESTATE: {"liquidity": "Low"},
-    AssetCategory.VEHICLE: {"liquidity": "Medium"},
-    AssetCategory.CASH: {"liquidity": "High"},
-    AssetCategory.EQUITY: {"liquidity": "Medium"}
+    # Expense Categories mapped to Expense Types and Transaction Classes
+    ExpenseCategory.HOUSING.value: {"type": "Fixed", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.UTILITIES.value: {"type": "Fixed", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.SUBSCRIPTIONS.value: {"type": "Fixed", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.GROCERIES.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.TRANSPORT.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.SHOPPING.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.HEALTH.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.TRAVEL.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.EDUCATION.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+    ExpenseCategory.OTHER.value: {"type": "Variable", "class": TransactionType.EXPENSE.value},
+
+    # Transport Subcategories mapped to Transport Expense Category
+    TransportSubcategory.FUEL.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.PARKING.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.TOLLS.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.LEASE.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.PUBLIC_TRANSPORT.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.RIDE_SHARING.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.MAINTENANCE.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.INSURANCE.value: {"class": ExpenseCategory.TRANSPORT.value},
+    TransportSubcategory.ACQUISITION.value: {"class": ExpenseCategory.TRANSPORT.value}
 }

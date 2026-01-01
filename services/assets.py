@@ -7,10 +7,19 @@ class AssetsService:
         self.auth = AuthService()
         self.filename = "assets.json"
         self.defaults = {
-            "Real Estate": 0,
+            "Real Estate": {
+                "Property & Land": 0,
+                "Interior & Decor": 0,
+                "Appliances & Tech": 0,
+                "Garden": 0
+            },
             "Vehicles": 0,
             "Mortgage": 0,
-            "Cash": {"Emergency": 0, "Wallet": 0, "Savings": 0}
+            "Cash": {
+                "Emergency": 0,
+                "Wallet": 0,
+                "Savings": 0
+            }
         }
 
     def load_assets(self):
@@ -40,3 +49,10 @@ class AssetsService:
         path = self.auth.get_file_path(self.filename)
         with open(path, 'w') as f:
             json.dump(data, f)
+
+    def get_total_real_estate_value(self):
+        assets = self.load_assets()
+        re_data = assets.get("Real Estate", 0)
+        if isinstance(re_data, dict):
+            return sum(re_data.values())
+        return re_data

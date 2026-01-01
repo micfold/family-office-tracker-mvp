@@ -4,16 +4,24 @@ import re
 # Restored Static FX
 FX_RATES = {'USD': 23.5, 'EUR': 25.2, 'GBP': 29.5, 'CZK': 1.0}
 
-def clean_snowball_number(val):
+
+def clean_numeric(val):
     if pd.isna(val): return 0.0
-    s = str(val).replace('"', '').replace("'", "").strip()
+    # Extract only digits, dots, commas, and minus signs
+    s = re.sub(r'[^\d.,-]', '', str(val))
     if not s: return 0.0
+
+    # Heuristic for decimal separators
     if ',' in s and '.' in s:
-        if s.find(',') > s.find('.'): s = s.replace('.', '').replace(',', '.')
-        else: s = s.replace(',', '')
+        # Keep the later one as decimal, remove the earlier one
+        if s.find('.') > s.find(','):
+            s = s.replace(',', '')
+        else:
+            s = s.replace('.', '').replace(',', '.')
     elif ',' in s:
-        if re.search(r',\d{2}$', s): s = s.replace(',', '.')
-        else: s = s.replace(',', '')
+        # If only a comma exists, treat it as a decimal (European standard)
+        s = s.replace(',', '.')
+
     return float(s)
 
 def process_portfolio_file(file_obj):
@@ -36,7 +44,7 @@ def process_portfolio_file(file_obj):
 def process_snapshot(df):
     numeric_cols = ['Current value', 'Cost basis', 'Total profit', 'Div. received', 'Dividend yield']
     for col in numeric_cols:
-        if col in df.columns: df[col] = df[col].apply(clean_snowball_number)
+        if col in df.columns: df[col] = df[col].apply(clean_numeric)
 
     if 'Current value' in df.columns and 'Dividend yield' in df.columns:
         df['Projected Annual Divs'] = df['Current value'] * (df['Dividend yield'] / 100)
@@ -63,7 +71,7 @@ def process_history(df):
     df = df.sort_values('Date').copy()
 
     for col in ['Price', 'Quantity', 'FeeTax']:
-        if col in df.columns: df[col] = df[col].apply(clean_snowball_number)
+        if col in df.columns: df[col] = df[col].apply(clean_numeric)
 
     history_rows = []
     current_holdings = {}

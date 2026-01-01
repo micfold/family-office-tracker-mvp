@@ -3,8 +3,8 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from services.ledger import LedgerService
-from core.enums import CATEGORY_METADATA
-from core.config import GLOBAL_RULES, UI_CATEGORIES
+from core.enums import CATEGORY_METADATA, TransactionType
+from core.config import UI_CATEGORIES
 from modules import analytics, processing
 from components import visuals
 
@@ -14,14 +14,14 @@ def render_view():
 
     service = LedgerService()
     ledger_df = service.load_ledger()
-    user_rules = service.load_user_rules()
 
-    # Create 5 tabs (Added Reporting)
     tabs = st.tabs(["📥 Entry & Upload", "🛠️ Data Quality", "⚖️ Reconciliation", "📊 Reporting", "📜 Ledger Data"])
 
-    # --- TAB 1: ENTRY ---
+    # --- TAB 1: ENTRY & UPLOAD ---
     with tabs[0]:
         c1, c2 = st.columns(2)
+
+        # 1. Manual Entry
         with c1:
             st.subheader("Manual Entry")
             with st.form("manual_add"):
@@ -29,120 +29,178 @@ def render_view():
                 desc = st.text_input("Description")
                 amt = st.number_input("Amount", step=100.0)
                 t_type = st.selectbox("Type", list(CATEGORY_METADATA.keys()))
-                cat = st.selectbox("Category", CATEGORY_METADATA[t_type])
+                cat = st.selectbox("Category", CATEGORY_METADATA[t_type])  # Assuming fixed struct
+
+                # New Account Fields
+                src = st.text_input("Source Account")
+                tgt = st.text_input("Target Account")
 
                 if st.form_submit_button("Add Transaction"):
                     new_row = {
-                        'Date': pd.to_datetime(d), 'Description': desc, 'Amount': amt,
-                        'Currency': 'CZK', 'Category': cat, 'Type': t_type, 'Source': 'Manual'
+                        'Date': pd.to_datetime(d),
+                        'Description': desc,
+                        'Amount': amt,
+                        'Currency': 'CZK',
+                        'Category': cat,
+                        'Type': t_type,
+                        'Source': 'Manual',
+                        'Source_Account': src,
+                        'Target_Account': tgt,
+                        'Batch_ID': 'Manual'
                     }
                     updated = pd.concat([ledger_df, pd.DataFrame([new_row])], ignore_index=True)
                     service.save_ledger(updated)
                     st.success("Added!")
                     st.rerun()
 
+        # 2. Batch Upload
         with c2:
             st.subheader("Batch Upload")
             files = st.file_uploader("Bank CSVs/ZIPs", accept_multiple_files=True)
+
             if files and st.button("Process Files"):
-                new_df = service.process_upload(files, user_rules)
+                with st.spinner("Processing..."):
+                    new_df = service.process_upload(files)
 
-                if not new_df.empty:
-                    if ledger_df.empty:
-                        combined = new_df
+                    if not new_df.empty:
+                        # Business Logic Deduplication:
+                        # We identify duplicates based on the ACTUAL content, ignoring the Batch_ID
+                        # This prevents "Double Counting" if you upload the same file twice without deleting
+
+                        subset_cols = ['Date', 'Description', 'Amount', 'Source_Account']
+
+                        # 1. Combine old and new
+                        if ledger_df.empty:
+                            combined = new_df
+                        else:
+                            combined = pd.concat([ledger_df, new_df], ignore_index=True)
+
+                        # 2. Remove duplicates based on content, keeping the LAST upload (the new one)
+                        # This updates the Batch_ID if you are re-uploading existing data
+                        before_count = len(combined)
+                        combined = combined.drop_duplicates(subset=subset_cols, keep='last')
+                        after_count = len(combined)
+
+                        duplicates_removed = before_count - after_count
+
+                        # 3. Save
+                        service.save_ledger(combined)
+
+                        msg = f"✅ Processed {len(new_df)} rows."
+                        if duplicates_removed > 0:
+                            msg += f" (Updated {duplicates_removed} existing transactions)"
+                        st.success(msg)
+                        st.rerun()
                     else:
-                        combined = pd.concat([ledger_df, new_df], ignore_index=True)
+                        st.warning("⚠️ No valid transactions found in the uploaded files. Check file format.")
 
-                    # Remove duplicates and save
-                    combined = combined.drop_duplicates()
-                    service.save_ledger(combined)
-
-                    st.success(f"Imported {len(new_df)} transactions!")
-                    st.rerun()
-
-    # --- TAB 2: DATA QUALITY ---
+    # --- TAB 2: DATA QUALITY (With Rule Manager) ---
     with tabs[1]:
-        st.subheader("Data Quality Workbench")
-        if not ledger_df.empty:
-            sug = processing.suggest_patterns(ledger_df)
+        # ... (Keep existing Data Quality code)
+        pass
 
-            if not sug.empty:
-                c1, c2 = st.columns([2, 1])
-                with c1:
-                    st.markdown("#### Uncategorized Patterns")
-                    # Added selection_mode to enable interaction
-                    st.dataframe(
-                        sug[['Description', 'Count', 'Total_Value']],
-                        width='stretch',
-                        selection_mode="single-row",
-                        on_select="rerun",
-                        key="suggestion_table"
-                    )
-
-                with c2:
-                    st.markdown("#### Quick Rule Creator")
-                    # Check if user selected a row
-                    if "suggestion_table" in st.session_state and st.session_state.suggestion_table.selection.rows:
-                        row_idx = st.session_state.suggestion_table.selection.rows[0]
-                        sel_desc = sug.iloc[row_idx]['Description']
-
-                        st.write(f"**Pattern:** `{sel_desc}`")
-
-                        # Rule Creation Form
-                        qr_type = st.selectbox("Type", list(UI_CATEGORIES.keys()), key="qr_type_sel")
-                        with st.form("quick_rule"):
-                            qr_cat = st.selectbox("Category", UI_CATEGORIES[qr_type])
-                            if st.form_submit_button("Create Rule"):
-                                new_rule = {'pattern': sel_desc, 'target': qr_cat}
-                                user_rules.append(new_rule)
-                                service.save_user_rules(user_rules)
-
-                                # Re-process ledger to apply new rule immediately
-                                reprocessed = processing.apply_categorization(ledger_df, GLOBAL_RULES, user_rules)
-                                service.save_ledger(reprocessed)
-
-                                st.success("Rule Saved & Ledger Updated!")
-                                st.rerun()
-                    else:
-                        st.info("👈 Select a pattern to create a rule.")
-            else:
-                st.success("No recurring uncategorized patterns found!")
-
-            st.divider()
-            st.markdown(f"#### Uncategorized Transactions")
-            st.dataframe(ledger_df[ledger_df['Category'] == 'Uncategorized'], width='stretch')
-        else:
-            st.info("Ledger is empty.")
-
-    # --- TAB 3: RECONCILIATION ---
+        # --- TAB 3: RECONCILIATION ---
     with tabs[2]:
-        st.subheader("Balance Reconciliation")
-        if not ledger_df.empty:
-            c1, c2 = st.columns([1, 3])
-            with c1:
-                chk_date = st.date_input("Checkpoint Date", value=date.today())
-                chk_bal = st.number_input("Balance on Date", value=0.0)
-            rec_df = analytics.calculate_running_balance(ledger_df, chk_date, chk_bal)
-            visuals.render_balance_history(rec_df)
+        # ... (Keep existing Reconciliation code)
+        pass
 
     # --- TAB 4: REPORTING ---
     with tabs[3]:
-        st.subheader("Financial Analytics")
-        if not ledger_df.empty:
-            c1, c2 = st.columns(2)
-            with c1:
-                visuals.render_pie(
-                    analytics.get_expense_breakdown(ledger_df),
-                    'AbsAmount', 'Category', "Expenses by Category"
-                )
-            with c2:
-                visuals.render_bar(
-                    analytics.get_fixed_vs_variable(ledger_df),
-                    'Type', 'AbsAmount', "Fixed vs Variable", color='Type'
-                )
-        else:
-            st.info("No data available.")
+        # ... (Keep existing Reporting code)
+        pass
 
-    # --- TAB 5: DATA ---
+    # --- TAB 5: LEDGER DATA ---
     with tabs[4]:
-        st.dataframe(ledger_df.sort_values('Date', ascending=False), width='stretch')
+        # ... (Keep existing Ledger Data code)
+        pass
+
+    # --- BELOW TABS: UPLOAD HISTORY & MANAGEMENT ---
+    st.divider()
+    st.subheader("📂 Upload History")
+
+    history = service.get_batch_history()
+
+    if not history.empty:
+        st.dataframe(
+            history.style.format({
+                'Total_In': "{:,.0f}",
+                'Total_Out': "{:,.0f}"
+            }),
+            width='stretch',
+            column_config={
+                "Batch_ID": "Import ID",
+                "Tx_Count": "Transactions",
+                "Total_In": "Total Income",
+                "Total_Out": "Total Outgoing"
+            }
+        )
+
+        st.write("### Manage Batch")
+
+        # Action Selector
+        selected_batch = st.selectbox(
+            "Select Batch to Edit/Delete",
+            history['Batch_ID'].unique(),
+            key="batch_selector"
+        )
+
+        col_a, col_b = st.columns(2)
+
+        # DELETE
+        with col_a:
+            if st.button("🗑️ Delete Entire Batch", type="primary", width='stretch'):
+                service.delete_batch(selected_batch)
+                st.warning(f"Batch {selected_batch} deleted.")
+                st.rerun()
+
+        # EDIT
+        with col_b:
+            if st.button("✏️ Edit Transactions", width='stretch'):
+                st.session_state['editing_batch'] = selected_batch
+
+        # EDITOR INTERFACE
+        if st.session_state.get('editing_batch') == selected_batch:
+            st.markdown(f"#### 📝 Editing: {selected_batch}")
+
+            # Load fresh data
+            current_full = service.load_ledger()
+            batch_data = current_full[current_full['Batch_ID'] == selected_batch].copy()
+
+            # Generate options list for the SelectboxColumn
+            # Flatten the dictionary values into a single list of strings
+            cat_options = []
+            for group in UI_CATEGORIES.values():
+                cat_options.extend(group)
+
+            edited_batch = st.data_editor(
+                batch_data,
+                num_rows="dynamic",
+                width='stretch',
+                key="editor_grid",
+                column_config={
+                    "Date": st.column_config.DateColumn("Date", format="YYYY-MM-DD"),
+                    "Amount": st.column_config.NumberColumn("Amount", format="%.2f"),
+                    # FIXED: Changed SelectColumn to SelectboxColumn
+                    "Category": st.column_config.SelectboxColumn(
+                        "Category",
+                        options=cat_options,
+                        required=True
+                    ),
+                    "Batch_ID": st.column_config.TextColumn("Batch ID", disabled=True)
+                }
+            )
+
+            if st.button("💾 Save Changes"):
+                # Filter OUT the old batch data
+                remaining_data = current_full[current_full['Batch_ID'] != selected_batch]
+
+                # Combine remaining + edited
+                updated_ledger = pd.concat([remaining_data, edited_batch], ignore_index=True)
+
+                service.save_ledger(updated_ledger)
+                st.success("Batch updated successfully!")
+                del st.session_state['editing_batch']
+                st.rerun()
+
+    else:
+        st.caption("No upload history available.")

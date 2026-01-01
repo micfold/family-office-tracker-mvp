@@ -23,53 +23,43 @@ def clean_currency(value):
 
     return pd.to_numeric(val_str, errors='coerce')
 
+BANK_CONFIGS = {
+    'CS': {
+        'trigger': 'Own account name',
+        'date': 'Processing Date',
+        'desc': ['Partner Name', 'Note'],
+        'amt': 'Amount',
+        'own_acc': 'Own account number',  # New mapping
+        'target_acc': 'Partner account number' # New mapping
+    },
+    'RB_CUR': {
+        'trigger': 'Datum provedení',
+        'date': 'Datum provedení',
+        'desc': ['Název protiúčtu', 'Zpráva'],
+        'amt': 'Zaúčtovaná částka',
+        'own_acc': 'Číslo účtu', # New mapping
+        'target_acc': 'Číslo protiúčtu' # New mapping
+    },
+}
+
 
 def parse_bank_file_content(content, filename):
-    """Parses string content into a standardized DataFrame."""
-    try:
-        # Determine separator
-        first_line = content.split('\n')[0]
-        sep = ';' if ';' in first_line else ','
-        df = pd.read_csv(io.StringIO(content), sep=sep)
-    except Exception as e:
-        raise ValueError(f"CSV Parsing Failed: {str(e)}")
+    sep = ';' if ';' in content.split('\n')[0] else ','
+    df = pd.read_csv(io.StringIO(content), sep=sep)
 
-    if df.empty: return None
-
-    cols = df.columns.tolist()
-    standard_df = pd.DataFrame()
-
-    # 1. Česká spořitelna
-    if 'Own account name' in cols:
-        standard_df['Date'] = pd.to_datetime(df['Processing Date'], dayfirst=True, errors='coerce')
-        standard_df['Description'] = df['Partner Name'].fillna('') + ' ' + df.get('Note',
-                                                                                  pd.Series([''] * len(df))).fillna('')
-        standard_df['Amount'] = df['Amount'].apply(clean_currency)
-        standard_df['Currency'] = df.get('Currency', 'CZK')
-        standard_df['Source'] = f"CS {filename}"
-
-    # 2. RB Current
-    elif 'Datum provedení' in cols:
-        standard_df['Date'] = pd.to_datetime(df['Datum provedení'], dayfirst=True, errors='coerce')
-        standard_df['Description'] = df['Název protiúčtu'].fillna('') + ' ' + df['Zpráva'].fillna('')
-        standard_df['Amount'] = df['Zaúčtovaná částka'].apply(clean_currency)
-        standard_df['Currency'] = df.get('Měna účtu', 'CZK')
-        standard_df['Source'] = f"RB Current {filename}"
-
-    # 3. RB Credit Card
-    elif 'Číslo kreditní karty' in cols:
-        standard_df['Date'] = pd.to_datetime(df['Datum transakce'], dayfirst=True, errors='coerce')
-        standard_df['Description'] = df['Popis/Místo transakce'].fillna('') + ' ' + df['Název obchodníka'].fillna('')
-        standard_df['Amount'] = df['Zaúčtovaná částka'].apply(clean_currency)
-        standard_df['Currency'] = df.get('Měna zaúčtování', 'CZK')
-        standard_df['Source'] = f"RB CC {filename}"
-
-    else:
-        return None
-
-    standard_df['Date'] = standard_df['Date'].dt.normalize()
-    standard_df['Description'] = standard_df['Description'].str.strip()
-    return standard_df
+    for bank, cfg in BANK_CONFIGS.items():
+        if cfg['trigger'] in df.columns:
+            standard_df = pd.DataFrame()
+            standard_df['Date'] = pd.to_datetime(df[cfg['date']], dayfirst=True)
+            standard_df['Amount'] = df[cfg['amt']].apply(clean_currency)
+            # Scalable description merging
+            standard_df['Source_Account'] = df.get(cfg.get('own_acc'), '')
+            standard_df['Target_Account'] = df.get(cfg.get('target_acc'), '')
+            standard_df['Description'] = df[cfg['desc']].fillna('').agg(' '.join, axis=1)
+            standard_df['Source'] = f"{bank} {filename}"
+            standard_df['Currency'] = 'CZK'
+            return standard_df
+    return None
 
 
 def process_uploaded_files(uploaded_files):

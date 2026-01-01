@@ -1,6 +1,6 @@
 # views/assets.py
 import streamlit as st
-from services.assets import AssetsService  # <--- Use Service
+from services.assets import AssetsService
 from services.ledger import LedgerService
 from services.portfolio import PortfolioService
 from components import visuals
@@ -16,6 +16,11 @@ def render_view():
 
     # Load Data
     assets = as_svc.load_assets()
+    re_data = assets.get("Real Estate", {})
+    if isinstance(re_data, dict):
+        prop_val = sum(re_data.values())
+    else:
+        prop_val = re_data
     port_data = ps.load_data()
     ledger_df = ls.load_ledger()
 
@@ -25,9 +30,11 @@ def render_view():
     elif port_data.get('history'):
         portfolio_val = port_data['history']['value_proxy']
 
-    ledger_balance = 0.0
     if not ledger_df.empty:
         ledger_balance = ledger_df['Amount'].sum()
+
+        if not isinstance(re_data, dict):
+            re_data = {"Property & Land": re_data, "Interior & Decor": 0, "Appliances & Tech": 0}
 
         # --- INPUT FORM (Manual Assets Only) ---
         with st.form("asset_update"):
@@ -35,19 +42,23 @@ def render_view():
 
             with c1:
                 st.subheader("🏡 Hard Assets")
-                re_val = st.number_input("Real Estate", value=assets.get("Real Estate", 0))
+                prop_val = st.number_input("Property + Land", value=re_data.get("Property & Land", 0))
+                decor_val = st.number_input("Interior & Decor", value=re_data.get("Interior & Decor", 0))
+                app_val = st.number_input("Appliances & Tech", value=re_data.get("Appliances & Tech", 0))
+
+                total_re = prop_val + decor_val + app_val
+                st.info(f"Total Value: {total_re:,.0f} CZK")
+
                 veh_val = st.number_input("Vehicles", value=assets.get("Vehicles", 0))
 
             with c2:
                 st.subheader("💵 Cash Positions")
-                # Display Ledger Balance as Read-Only
+
                 st.metric("🏦 Operating Accounts (Ledger)", f"{ledger_balance:,.0f} CZK",
                           help="Auto-calculated from Cashflow & Ledger")
-
                 st.divider()
-                st.caption("Manual Cash Entries")
 
-                # Dynamic fields for manual cash (Emergency, Wallet, etc.)
+                st.caption("Manual Cash Entries")
                 cash_dict = assets.get("Cash", {})
                 new_cash_dict = {}
                 for k, v in cash_dict.items():
@@ -58,8 +69,13 @@ def render_view():
                 mort_val = st.number_input("Mortgage", value=assets.get("Mortgage", 0))
 
             if st.form_submit_button("Update Balance Sheet"):
+
                 new_data = {
-                    "Real Estate": re_val,
+                    "Real Estate": {
+                    "Property & Land": prop_val,
+                    "Interior & Decor": decor_val,
+                    "Appliances & Tech": app_val
+                },
                     "Vehicles": veh_val,
                     "Mortgage": mort_val,
                     "Cash": new_cash_dict
@@ -69,14 +85,13 @@ def render_view():
                 st.rerun()
 
         # --- VISUALIZATION ---
-        # Combine Manual Cash + Ledger Balance for the Chart
         display_cash = assets.get("Cash", {}).copy()
         display_cash["Operating Accounts (Ledger)"] = ledger_balance
 
         visuals.render_t_form(
-            assets.get("Real Estate", 0),
+            prop_val,
             assets.get("Vehicles", 0),
             portfolio_val,
-            display_cash,  # <--- Now includes Ledger Balance
+            display_cash,
             assets.get("Mortgage", 0)
         )
