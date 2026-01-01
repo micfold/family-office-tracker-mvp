@@ -1,79 +1,82 @@
 # views/assets.py
 import streamlit as st
-import json
-from services.auth import AuthService
-from components import visuals
+from services.assets import AssetsService  # <--- Use Service
+from services.ledger import LedgerService
 from services.portfolio import PortfolioService
+from components import visuals
 
 
 def render_view():
     st.title("💎 Assets & Liabilities")
 
-    auth = AuthService()
-
+    # Initialize Services
+    as_svc = AssetsService()
     ps = PortfolioService()
+    ls = LedgerService()
+
+    # Load Data
+    assets = as_svc.load_assets()
     port_data = ps.load_data()
+    ledger_df = ls.load_ledger()
 
-    # Calculate Portfolio Value
     portfolio_val = 0
-    if port_data.get('snapshot') is not None:
+    if port_data.get('snapshot'):
         portfolio_val = port_data['snapshot']['value']
-    elif port_data.get('history') is not None:
-        portfolio_val = port_data['history'].get('value_proxy', 0)
+    elif port_data.get('history'):
+        portfolio_val = port_data['history']['value_proxy']
 
-    file_path = auth.get_file_path("assets.json")
+    ledger_balance = 0.0
+    if not ledger_df.empty:
+        ledger_balance = ledger_df['Amount'].sum()
 
-    # Load existing or default
-    defaults = {
-        "Real Estate": 0, "Vehicles": 0, "Mortgage": 0,
-        "Cash": {"Emergency": 0, "Wallet": 0, "Savings": 0}
-    }
+        # --- INPUT FORM (Manual Assets Only) ---
+        with st.form("asset_update"):
+            c1, c2, c3 = st.columns(3)
 
-    assets = defaults
-    if file_path.exists():
-        with open(file_path, 'r') as f:
-            loaded = json.load(f)
-            assets.update(loaded)
+            with c1:
+                st.subheader("🏡 Hard Assets")
+                re_val = st.number_input("Real Estate", value=assets.get("Real Estate", 0))
+                veh_val = st.number_input("Vehicles", value=assets.get("Vehicles", 0))
 
-    # Input Form
-    with st.form("asset_update"):
-        c1, c2, c3 = st.columns(3)
+            with c2:
+                st.subheader("💵 Cash Positions")
+                # Display Ledger Balance as Read-Only
+                st.metric("🏦 Operating Accounts (Ledger)", f"{ledger_balance:,.0f} CZK",
+                          help="Auto-calculated from Cashflow & Ledger")
 
-        with c1:
-            st.subheader("🏡 Hard Assets")
-            re_val = st.number_input("Real Estate", value=assets.get("Real Estate", 0))
-            veh_val = st.number_input("Vehicles", value=assets.get("Vehicles", 0))
+                st.divider()
+                st.caption("Manual Cash Entries")
 
-        with c2:
-            st.subheader("💵 Cash Positions")
-            # Dynamic Cash Fields
-            cash_dict = assets.get("Cash", defaults["Cash"])
-            new_cash_dict = {}
-            for k, v in cash_dict.items():
-                new_cash_dict[k] = st.number_input(f"Cash: {k}", value=v)
+                # Dynamic fields for manual cash (Emergency, Wallet, etc.)
+                cash_dict = assets.get("Cash", {})
+                new_cash_dict = {}
+                for k, v in cash_dict.items():
+                    new_cash_dict[k] = st.number_input(f"{k}", value=v)
 
-        with c3:
-            st.subheader("🏦 Liabilities")
-            mort_val = st.number_input("Mortgage", value=assets.get("Mortgage", 0))
+            with c3:
+                st.subheader("🏦 Liabilities")
+                mort_val = st.number_input("Mortgage", value=assets.get("Mortgage", 0))
 
-        if st.form_submit_button("Update Balance Sheet"):
-            new_data = {
-                "Real Estate": re_val,
-                "Vehicles": veh_val,
-                "Mortgage": mort_val,
-                "Cash": new_cash_dict
-            }
-            with open(file_path, 'w') as f:
-                json.dump(new_data, f)
-            st.success("Assets updated!")
-            st.rerun()
+            if st.form_submit_button("Update Balance Sheet"):
+                new_data = {
+                    "Real Estate": re_val,
+                    "Vehicles": veh_val,
+                    "Mortgage": mort_val,
+                    "Cash": new_cash_dict
+                }
+                as_svc.save_assets(new_data)
+                st.success("Assets updated!")
+                st.rerun()
 
-    # Visuals
-    # Re-use the nice Balance Sheet visual from Master
-    visuals.render_t_form(
-        assets.get("Real Estate", 0),
-        assets.get("Vehicles", 0),
-        0,  # Portfolio value should ideally be fetched from PortfolioService here
-        assets.get("Cash", {}),
-        assets.get("Mortgage", 0)
-    )
+        # --- VISUALIZATION ---
+        # Combine Manual Cash + Ledger Balance for the Chart
+        display_cash = assets.get("Cash", {}).copy()
+        display_cash["Operating Accounts (Ledger)"] = ledger_balance
+
+        visuals.render_t_form(
+            assets.get("Real Estate", 0),
+            assets.get("Vehicles", 0),
+            portfolio_val,
+            display_cash,  # <--- Now includes Ledger Balance
+            assets.get("Mortgage", 0)
+        )

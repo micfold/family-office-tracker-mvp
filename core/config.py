@@ -1,4 +1,4 @@
-from core.enums import TransactionType, ExpenseCategory, IncomeCategory
+from core.enums import TransactionType, ExpenseCategory, IncomeCategory, TransferCategory, InvestmentCategory
 
 # Default Filenames
 DEFAULT_PORTFOLIO_FILE = "Snowball Holdings.csv"
@@ -12,8 +12,8 @@ CATEGORY_TYPE_MAP = {
     IncomeCategory.REFUNDS.value: "Income",
     IncomeCategory.OTHER.value: "Income",
 
-    "Investment Deposit": "Investment",
-    "Investment Withdrawal": "Investment",
+    TransferCategory.INTERNAL.value: "Transfer",
+    TransferCategory.EXCHANGE.value: "Transfer",
 
     ExpenseCategory.HOUSING.value: "Fixed",
     ExpenseCategory.UTILITIES.value: "Fixed",
@@ -29,16 +29,37 @@ CATEGORY_TYPE_MAP = {
     "Uncategorized": "Variable"
 }
 
-# Restored Global Categorization Rules
+# Advanced Global Rules with Directionality
 GLOBAL_RULES = [
-    {'pattern': 'Trading 212', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT},
-    {'pattern': 'XTB', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT},
+    # --- INVESTMENTS ---
+    {'pattern': 'Trading 212', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT,
+     'direction': 'negative'},
+    {'pattern': 'XTB', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT, 'direction': 'negative'},
+
+    # --- COMPLEX PATTERNS (User Requested) ---
+
+    # "HM": Refund if positive, Shopping if negative
+    {'pattern': 'HM ', 'category': IncomeCategory.REFUNDS.value, 'type': TransactionType.INCOME,
+     'direction': 'positive'},
+    {'pattern': 'HM ', 'category': ExpenseCategory.SHOPPING.value, 'type': TransactionType.EXPENSE,
+     'direction': 'negative'},
+
+    # "FÚ" (Tax Office): Refund if positive, Expense if negative
+    {'pattern': 'FÚ pro', 'category': IncomeCategory.REFUNDS.value, 'type': TransactionType.INCOME,
+     'direction': 'positive'},
+    {'pattern': 'FÚ pro', 'category': ExpenseCategory.OTHER.value, 'type': TransactionType.EXPENSE,
+     'direction': 'negative'},  # Fines/Taxes
+
+    # "Raiffeisenbank": Salary vs Fees/Travel
+    {'pattern': 'Raiffeisenbank', 'category': IncomeCategory.SALARY.value, 'type': TransactionType.INCOME,
+     'direction': 'positive'},
+    {'pattern': 'Raiffeisenbank', 'category': ExpenseCategory.OTHER.value, 'type': TransactionType.EXPENSE,
+     'direction': 'negative'},
+
+    # --- STANDARD PATTERNS ---
     {'pattern': 'Hypoteka', 'category': ExpenseCategory.HOUSING.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'Shell', 'category': ExpenseCategory.TRANSPORT.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'Benzina', 'category': ExpenseCategory.TRANSPORT.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'MOL', 'category': ExpenseCategory.TRANSPORT.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'Uber', 'category': ExpenseCategory.TRANSPORT.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'Bolt', 'category': ExpenseCategory.TRANSPORT.value, 'type': TransactionType.EXPENSE},
+
+    # Lifestyle
     {'pattern': 'Lekarna', 'category': ExpenseCategory.HEALTH.value, 'type': TransactionType.EXPENSE},
     {'pattern': 'Dr. Max', 'category': ExpenseCategory.HEALTH.value, 'type': TransactionType.EXPENSE},
     {'pattern': 'Albert', 'category': ExpenseCategory.GROCERIES.value, 'type': TransactionType.EXPENSE},
@@ -47,13 +68,13 @@ GLOBAL_RULES = [
     {'pattern': 'Kaufland', 'category': ExpenseCategory.GROCERIES.value, 'type': TransactionType.EXPENSE},
     {'pattern': 'Rohlik', 'category': ExpenseCategory.GROCERIES.value, 'type': TransactionType.EXPENSE},
     {'pattern': 'Netflix', 'category': ExpenseCategory.SUBSCRIPTIONS.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'Spotify', 'category': ExpenseCategory.SUBSCRIPTIONS.value, 'type': TransactionType.EXPENSE},
-    {'pattern': 'YouTube', 'category': ExpenseCategory.SUBSCRIPTIONS.value, 'type': TransactionType.EXPENSE}
+    {'pattern': 'Spotify', 'category': ExpenseCategory.SUBSCRIPTIONS.value, 'type': TransactionType.EXPENSE}
 ]
 
 # UI Options
 UI_CATEGORIES = {
     TransactionType.INCOME.value: [e.value for e in IncomeCategory],
     TransactionType.EXPENSE.value: [e.value for e in ExpenseCategory],
-    TransactionType.INVESTMENT.value: ["Investment Deposit", "Investment Withdrawal"]
+    TransactionType.INVESTMENT.value: [e.value for e in InvestmentCategory],
+    TransactionType.TRANSFER.value: [e.value for e in TransferCategory]
 }

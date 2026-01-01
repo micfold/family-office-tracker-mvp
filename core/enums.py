@@ -1,20 +1,31 @@
 from enum import Enum, auto
 
+
 class TransactionType(Enum):
     INCOME = "Income"
     EXPENSE = "Expense"
     INVESTMENT = "Investment"
     TRANSFER = "Transfer"
 
+
 class ExpenseType(Enum):
     FIXED = "Fixed"
     VARIABLE = "Variable"
+
+class InvestmentCategory(Enum):
+    DEPOSIT = "Investment Deposit"
+    WITHDRAWAL = "Investment Withdrawal"
+
+class TransferCategory(Enum):
+    INTERNAL = "Internal Transfer"
+    EXCHANGE = "Currency Exchange"
+
 
 class ExpenseCategory(Enum):
     HOUSING = "Housing (Mortgage/Rent)"
     UTILITIES = "Utilities"
     GROCERIES = "Groceries"
-    TRANSPORT = "Transport (Fuel/Taxi)"
+    TRANSPORT = "Transport"
     SHOPPING = "Shopping"
     HEALTH = "Health & Wellness"
     SUBSCRIPTIONS = "Subscriptions"
@@ -22,12 +33,25 @@ class ExpenseCategory(Enum):
     EDUCATION = "Education"
     OTHER = "Other Expense"
 
+class TransportSubcategory(Enum):
+    FUEL = "Fuel"
+    PARKING = "Parking"
+    TOLLS = "Tolls"
+    LEASE = "Lease"
+    PUBLIC_TRANSPORT = "Public Transport"
+    RIDE_SHARING = "Ride Sharing"
+    MAINTENANCE = "Maintenance"
+    INSURANCE = "Insurance"
+    ACQUISITION = "Acquisition"
+
+
 class IncomeCategory(Enum):
     SALARY = "Salary"
     DIVIDENDS = "Dividends"
     BUSINESS = "Business Income"
     REFUNDS = "Refunds"
     OTHER = "Other Income"
+
 
 class AssetCategory(Enum):
     REAL_ESTATE = "Real Estate"

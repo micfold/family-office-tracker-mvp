@@ -42,17 +42,30 @@ class LedgerService:
         path = self.auth.get_file_path(self.rules_filename)
         path.write_text(json.dumps(rules, indent=2))
 
-    def categorize_transaction(description, amount):
-        """Determines category based on rules."""
+    def categorize_transaction(self, description, amount):
+        """
+        Determines category based on rules AND amount direction.
+        """
+        desc_str = str(description).lower()
+
         # 1. Check Global Rules
         for rule in GLOBAL_RULES:
-            if rule['pattern'].lower() in str(description).lower():
-                # Return mapped Enum value
+            # Check pattern match
+            if rule['pattern'].lower() in desc_str:
+
+                # Check Direction Constraint (if exists)
+                direction = rule.get('direction')  # 'positive' or 'negative'
+
+                if direction == 'positive' and amount < 0:
+                    continue  # Skip this rule, look for others
+                if direction == 'negative' and amount > 0:
+                    continue  # Skip this rule
+
+                # If we passed checks, return match
                 return rule['category'], rule['type']
 
         # 2. Default Fallback
         return "Uncategorized", TransactionType.EXPENSE if amount < 0 else TransactionType.INCOME
-
     def process_upload(self, uploaded_files, user_rules=None):
         """
         Parses and categorizes bank statements.
