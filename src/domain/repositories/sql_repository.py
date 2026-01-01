@@ -4,14 +4,21 @@ from uuid import UUID
 import pandas as pd
 from sqlmodel import Session, select, delete
 from src.core.database import engine
+
+# Models
 from src.domain.models.MAsset import Asset
 from src.domain.models.MTransaction import Transaction
 from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
+from src.domain.models.MLiability import Liability  # <--- NEW
+
+# Repository Interfaces
 from src.domain.repositories.asset_repository import AssetRepository
 from src.domain.repositories.transaction_repository import TransactionRepository
 from src.domain.repositories.portfolio_repository import PortfolioRepository
+from src.domain.repositories.liability_repository import LiabilityRepository  # <--- NEW
 
 
+# --- ASSET REPO ---
 class SqlAssetRepository(AssetRepository):
     def get_all(self, user_id: UUID) -> List[Asset]:
         with Session(engine) as session:
@@ -20,7 +27,6 @@ class SqlAssetRepository(AssetRepository):
 
     def save(self, asset: Asset) -> None:
         with Session(engine) as session:
-            # Merge handles both insert (new ID) and update (existing ID)
             session.merge(asset)
             session.commit()
 
@@ -39,6 +45,28 @@ class SqlAssetRepository(AssetRepository):
             session.commit()
 
 
+# --- LIABILITY REPO (NEW) ---
+class SqlLiabilityRepository(LiabilityRepository):
+    def get_all(self, user_id: UUID) -> List[Liability]:
+        with Session(engine) as session:
+            statement = select(Liability).where(Liability.owner == user_id)
+            return list(session.exec(statement).all())
+
+    def save(self, liability: Liability) -> None:
+        with Session(engine) as session:
+            session.merge(liability)
+            session.commit()
+
+    def delete(self, liability_id: UUID) -> None:
+        with Session(engine) as session:
+            statement = select(Liability).where(Liability.id == liability_id)
+            obj = session.exec(statement).first()
+            if obj:
+                session.delete(obj)
+                session.commit()
+
+
+# --- TRANSACTION REPO ---
 class SqlTransactionRepository(TransactionRepository):
     def get_all(self, user_id: UUID) -> List[Transaction]:
         with Session(engine) as session:
@@ -46,16 +74,12 @@ class SqlTransactionRepository(TransactionRepository):
             return list(session.exec(statement).all())
 
     def get_as_dataframe(self, user_id: UUID) -> pd.DataFrame:
-        # SQLModel objects can be converted to dicts easily for Pandas
         txs = self.get_all(user_id)
-        if not txs:
-            return pd.DataFrame()
+        if not txs: return pd.DataFrame()
         return pd.DataFrame([t.model_dump() for t in txs])
 
     def save_bulk(self, transactions: List[Transaction]) -> None:
         with Session(engine) as session:
-            # Simplistic bulk save.
-            # In a real app, we might check for duplicates here using a hash of fields
             for t in transactions:
                 session.add(t)
             session.commit()
@@ -67,6 +91,7 @@ class SqlTransactionRepository(TransactionRepository):
             session.commit()
 
 
+# --- PORTFOLIO REPO ---
 class SqlPortfolioRepository(PortfolioRepository):
     def get_snapshot(self, user_id: UUID) -> List[InvestmentPosition]:
         with Session(engine) as session:
@@ -76,20 +101,12 @@ class SqlPortfolioRepository(PortfolioRepository):
         with Session(engine) as session:
             return list(session.exec(select(InvestmentEvent).where(InvestmentEvent.owner == user_id)).all())
 
-    def save_snapshot_file(self, file_obj) -> None:
-        # For compatibility, you might still save the file to disk for "Archiving"
-        # But logically, you should parse this file and save ROWS to the DB.
-        # For now, we will just pass, or implementing parsing here.
-        pass
+    def save_snapshot_file(self, file_obj) -> None: pass
 
-    def save_history_file(self, file_obj) -> None:
-        pass
+    def save_history_file(self, file_obj) -> None: pass
 
-    # Helpers to save raw objects directly (used by Service)
     def save_positions(self, positions: List[InvestmentPosition]):
         with Session(engine) as session:
-            # Clear old snapshot for this user? Or update?
-            # Usually snapshot is "current state", so we delete old and insert new.
             if positions:
                 uid = positions[0].owner
                 session.exec(delete(InvestmentPosition).where(InvestmentPosition.owner == uid))

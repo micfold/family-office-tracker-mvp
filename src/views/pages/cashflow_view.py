@@ -1,8 +1,7 @@
+# src/views/pages/cashflow_view.py
 import streamlit as st
-import pandas as pd
 from datetime import date
 from src.container import get_container
-from src.domain.enums import CATEGORY_METADATA
 from src.views.components.charts import render_spending_trend
 from config import UI_CATEGORIES
 
@@ -16,16 +15,16 @@ def render_entry_upload_tab(service):
         with st.form("manual_add"):
             d = st.date_input("Date", date.today())
             desc = st.text_input("Description")
-            amt = st.number_input("Amount", step=100.0)
+            amt = st.number_input("Amount", step=100.0, format="%0.2f")
 
-            # Safe retrieval of keys
+            # 1. Select Type
             type_options = list(UI_CATEGORIES.keys())
             t_type = st.selectbox("Type", type_options)
 
-            # Helper to get categories safely
-            cat_options = UI_CATEGORIES.get(t_type, {}).get('class', ["Uncategorized"])
-            if isinstance(cat_options, str):
-                cat_options = [cat_options]
+            # 2. Select Category (FIXED LOGIC)
+            # UI_CATEGORIES[t_type] is now a direct List of strings.
+            # We use .get() just to safely handle if the key is missing.
+            cat_options = UI_CATEGORIES.get(t_type, ["Uncategorized"])
 
             cat = st.selectbox("Category", cat_options)
 
@@ -55,32 +54,25 @@ def render_entry_upload_tab(service):
 def render_view():
     st.title("💸 Cashflow & Ledger")
 
-    # Dependency Injection
     container = get_container()
     service = container['ledger']
-
-    # Load Data
     ledger_df = service.get_recent_transactions()
 
     tabs = st.tabs(["📊 Analytics", "📥 Entry & Upload", "📜 Ledger Data", "📂 Batch Management"])
 
-    # --- TAB 1: ANALYTICS ---
     with tabs[0]:
         st.subheader("Cashflow Trends")
         render_spending_trend(ledger_df)
 
-    # --- TAB 2: ENTRY ---
     with tabs[1]:
         render_entry_upload_tab(service)
 
-    # --- TAB 3: DATA ---
     with tabs[2]:
         if not ledger_df.empty:
             st.dataframe(ledger_df.sort_values('Date', ascending=False), use_container_width=True)
         else:
             st.info("No data found.")
 
-    # --- TAB 4: BATCHES ---
     with tabs[3]:
         history = service.get_batch_history()
         if not history.empty:

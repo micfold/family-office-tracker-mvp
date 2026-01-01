@@ -6,12 +6,24 @@ class Currency(str, Enum):
     EUR = "EUR"
     GBP = "GBP"
 
+class CashCategory(str, Enum):
+    CHECKING_ACCOUNT = "Checking Account"
+    SAVINGS_ACCOUNT = "Savings Account"
+    CASH_ON_HAND = "Cash on Hand"
+    OTHER = "Other Cash Category"
+
 
 class AssetCategory(str, Enum):
     REAL_ESTATE = "Real Estate"
     VEHICLE = "Vehicle"
     CASH = "Cash"
     EQUITY = "Equity"
+
+class LiabilityCategory(str, Enum):
+    MORTGAGE = "Mortgage"
+    PERSONAL_LOAN = "Personal Loan"
+    CREDIT_CARD = "Credit Card"
+    OTHER = "Other Liability"
 
 
 class TransactionType(str, Enum):
