@@ -4,6 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from sqlalchemy import Numeric
 from src.domain.enums import Currency
 
 class InvestmentPosition(SQLModel, table=True):
@@ -11,7 +12,7 @@ class InvestmentPosition(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     ticker: str = Field(index=True)
     name: str
-    quantity: Decimal = Field(max_digits=20, decimal_places=6)
+    quantity: Decimal = Field(sa_type=Numeric(20, 6))
     owner: UUID = Field(index=True)
     sector: Optional[str] = None
 
@@ -30,7 +31,7 @@ class InvestmentEvent(SQLModel, table=True):
     date: datetime = Field(index=True)
     ticker: str = Field(index=True)
     event_type: str
-    quantity: Optional[Decimal] = Field(default=None, max_digits=20, decimal_places=6)
+    quantity: Optional[Decimal] = Field(default=None, sa_type=Numeric(20, 6))
     price_per_share: Optional[Decimal] = Field(default=None, max_digits=20, decimal_places=4)
     total_amount: Decimal = Field(max_digits=20, decimal_places=2)
     currency: Currency

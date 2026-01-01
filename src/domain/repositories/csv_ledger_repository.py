@@ -44,7 +44,7 @@ class CsvTransactionRepository(TransactionRepository):
                     amount=row['Amount'],
                     currency=row.get('Currency', 'CZK'),
                     category=row.get('Category', 'Uncategorized'),
-                    type=row.get('Type', 'Expense'),
+                    transaction_type=row.get('Type', 'Expense'),
                     source_account=row.get('Source_Account'),
                     target_account=row.get('Target_Account'),
                     batch_id=str(row.get('Batch_ID', 'Legacy')),

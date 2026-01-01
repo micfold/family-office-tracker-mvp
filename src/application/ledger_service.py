@@ -61,7 +61,7 @@ class LedgerService:
                         amount=row['Amount'],
                         currency='CZK',
                         category=cat,
-                        type=t_type,
+                        transaction_type=t_type,
                         source_account=row.get('Source_Account'),
                         target_account=row.get('Target_Account'),
                         batch_id=batch_id,
@@ -81,6 +81,9 @@ class LedgerService:
         return len(transactions_to_save), 0
 
     def add_manual_transaction(self, data: dict):
+        if 'type' in data:
+            data['transaction_type'] = data.pop('type')
+
         tx = Transaction(
             **data,
             owner=_get_user_id()
