@@ -26,7 +26,6 @@ def render_t_form(house_val, fleet_val, stocks_val, cash_dict, mortgage_val):
         with c2:
             st.markdown("#### 🔴 Liabilities")
             st.write(f"**Mortgage:** {c(mortgage_val)}")
-            st.markdown("<br>", unsafe_allow_html=True)
             st.divider()
             st.metric("Liabilities", c(mortgage_val), delta_color="inverse")
         st.markdown(f"<h3 style='text-align:center'>Net Worth: {c(equity)}</h3>", unsafe_allow_html=True)
@@ -40,24 +39,24 @@ def render_trend_line(df):
     if 'Total Expenses' in df.columns:
         fig.add_trace(go.Bar(x=df['Month'], y=-df['Total Expenses'], name='Exp', marker_color='#e74c3c'))
     fig.update_layout(barmode='relative', height=300)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 def render_pie(df, values, names, title):
     if df.empty: return
     fig = px.pie(df, values=values, names=names, title=title, hole=0.5)
     fig.update_layout(height=350)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 def render_bar(df, x, y, title, color=None):
     if df.empty: return
     fig = px.bar(df, x=x, y=y, title=title, color=color)
     fig.update_layout(height=350)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 def render_balance_history(df):
     if df.empty: return
     fig = px.line(df, x='Date', y='Running Balance', title="Reconciliation Curve")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 # --- PORTFOLIO (Full Restoration) ---
 def render_unified_portfolio(snap, hist):
@@ -83,20 +82,20 @@ def render_unified_portfolio(snap, hist):
     with c1:
         if snap and 'Sector' in snap['df'].columns:
             st.subheader("Sector Allocation")
-            st.plotly_chart(px.pie(snap['df'], values='Current value', names='Sector', hole=0.4), use_container_width=True)
+            st.plotly_chart(px.pie(snap['df'], values='Current value', names='Sector', hole=0.4), width='stretch')
         elif hist:
             st.subheader("Annual Dividends")
-            st.plotly_chart(px.bar(hist['annual_divs'], x='Year', y='DividendCZK'), use_container_width=True)
+            st.plotly_chart(px.bar(hist['annual_divs'], x='Year', y='DividendCZK'), width='stretch')
 
     with c2:
         if hist:
             st.subheader("Invested Capital")
             fig = px.area(hist['history_df'], x='Date', y='Invested Capital')
             fig.update_traces(line_color='#2980b9', fillcolor='rgba(41, 128, 185, 0.3)')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         elif snap:
             st.subheader("Top Winners")
-            st.plotly_chart(px.bar(snap['top_10'], x='Holding', y='Total profit'), use_container_width=True)
+            st.plotly_chart(px.bar(snap['top_10'], x='Holding', y='Total profit'), width='stretch')
 
     # Dividend Intelligence
     if snap and hist:
@@ -104,11 +103,11 @@ def render_unified_portfolio(snap, hist):
         fig = go.Figure()
         fig.add_trace(go.Bar(name='Realized', x=['Dividends'], y=[hist['divs_earned']], marker_color='#f1c40f'))
         fig.add_trace(go.Bar(name='Projected', x=['Dividends'], y=[snap['divs_projected']], marker_color='#27ae60'))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     # Data Tables
     t1, t2 = st.tabs(["Current Holdings", "Transaction Log"])
     with t1:
-        if snap: st.dataframe(snap['df'], use_container_width=True)
+        if snap: st.dataframe(snap['df'], width='stretch')
     with t2:
-        if hist: st.dataframe(hist['raw'], use_container_width=True)
+        if hist: st.dataframe(hist['raw'], width='stretch')

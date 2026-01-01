@@ -1,13 +1,17 @@
 # app.py
 import streamlit as st
 from services.auth import AuthService
+from services.ledger import LedgerService
+from services.portfolio import PortfolioService
 from views import dashboard, assets, cashflow, portfolio
 
 # Page Config
 st.set_page_config(page_title="Family Office HQ", layout="wide", page_icon="🏛️")
 
-# Initialize Auth
+# Initialize Services
 auth = AuthService()
+ls = LedgerService()
+ps = PortfolioService()
 
 # --- 1. LOGIN SCREEN ---
 if not auth.current_user:
@@ -40,21 +44,43 @@ if not auth.current_user:
 
     st.stop()
 
-
 # --- 2. SIDEBAR NAVIGATION ---
 user = auth.current_user
 with st.sidebar:
     st.markdown(f"### 👤 {user['username']}")
-    if st.button("Log Out", type="secondary"):
-        auth.logout()
-        st.rerun()
 
-    st.divider()
-
+    # Navigation
     nav = st.radio(
         "Control Tower",
         ["Dashboard", "Assets", "Cashflow", "Portfolio"]
     )
+
+    st.divider()
+
+    # --- STATUS INDICATORS (Restored from Master) ---
+    st.markdown("#### 📡 System Status")
+
+    # Ledger Status
+    ledger = ls.load_ledger()
+    if not ledger.empty:
+        st.success(f"Ledger: {len(ledger)} Tx")
+    else:
+        st.warning("Ledger: Empty")
+
+    # Portfolio Status
+    p_data = ps.load_data()
+    s_ok = p_data['snapshot'] is not None
+    h_ok = p_data['history'] is not None
+
+    if s_ok or h_ok:
+        st.success(f"Portfolio: {'Snap ' if s_ok else ''}{'+ Hist' if h_ok else ''}")
+    else:
+        st.warning("Portfolio: No Data")
+
+    st.divider()
+    if st.button("Log Out", type="secondary"):
+        auth.logout()
+        st.rerun()
 
 # --- 3. ROUTER ---
 if nav == "Dashboard":

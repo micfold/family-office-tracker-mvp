@@ -1,7 +1,7 @@
 # views/portfolio.py
 import streamlit as st
 from services.portfolio import PortfolioService
-import plotly.express as px
+from components import visuals
 
 
 def render_view():
@@ -10,34 +10,28 @@ def render_view():
     service = PortfolioService()
     data = service.load_data()
 
+    snap = data['snapshot']
+    hist = data['history']
+
     # Uploaders
     with st.expander("Update Data Sources"):
         c1, c2 = st.columns(2)
         with c1:
-            snap = st.file_uploader("Holdings (Snapshot)", type='csv')
-            if snap:
-                service.save_file(snap, "snapshot")
+            st.caption("Holdings (Current Position)")
+            s_file = st.file_uploader("Upload Snapshot CSV", type='csv', key="snap_up")
+            if s_file:
+                service.save_file(s_file, "snapshot")
                 st.rerun()
         with c2:
-            hist = st.file_uploader("History (Transactions)", type='csv')
-            if hist:
-                service.save_file(hist, "history")
+            st.caption("History (Transaction Log)")
+            h_file = st.file_uploader("Upload History CSV", type='csv', key="hist_up")
+            if h_file:
+                service.save_file(h_file, "history")
                 st.rerun()
 
     # Visualization
-    if data['snapshot'] is not None:
-        df = data['snapshot']
-        st.subheader("Current Holdings")
-
-        # Key Metrics
-        if 'Current value' in df.columns:
-            total_val = df['Current value'].sum()
-            st.metric("Portfolio Value", f"{total_val:,.0f} CZK")
-
-            # Simple Chart
-            fig = px.pie(df, values='Current value', names='Sector', title="Allocation by Sector")
-            st.plotly_chart(fig, width='stretch')
-
-        st.dataframe(df, width='stretch')
+    if snap or hist:
+        # Use the shared visual component ported from Master
+        visuals.render_unified_portfolio(snap, hist)
     else:
-        st.info("Please upload a holdings snapshot to see visuals.")
+        st.info("👋 Upload your portfolio exports (Snapshot or History) to see analytics.")

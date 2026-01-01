@@ -1,3 +1,4 @@
+# micfold/family-office-tracker-mvp/family-office-tracker-mvp-feat-clean-architecture/modules/ingestion.py
 import zipfile
 import pandas as pd
 import io
@@ -5,7 +6,7 @@ import re
 
 
 def clean_currency(value):
-    """Restored robust currency cleaner."""
+    """Robust currency cleaner."""
     if pd.isna(value): return 0.0
     val_str = str(value).strip().replace('\xa0', '').replace(' ', '')
 
@@ -24,16 +25,14 @@ def clean_currency(value):
 
 
 def parse_bank_file_content(content, filename):
-    """
-    Refactored to take content string + filename (Stateless).
-    Logic restored from original ingestion.py
-    """
-    first_line = content.split('\n')[0]
-    sep = ';' if ';' in first_line else ','
+    """Parses string content into a standardized DataFrame."""
     try:
+        # Determine separator
+        first_line = content.split('\n')[0]
+        sep = ';' if ';' in first_line else ','
         df = pd.read_csv(io.StringIO(content), sep=sep)
-    except:
-        return None
+    except Exception as e:
+        raise ValueError(f"CSV Parsing Failed: {str(e)}")
 
     if df.empty: return None
 
@@ -74,18 +73,51 @@ def parse_bank_file_content(content, filename):
 
 
 def process_uploaded_files(uploaded_files):
-    """Generator yielding (filename, dataframe)."""
+    """
+    Generator yielding (filename, dataframe, error_message).
+    Handles robust encoding detection.
+    """
+    encodings = ['utf-8', 'utf-16', 'windows-1250', 'cp1250']
+
     for file in uploaded_files:
+        # 1. READ BYTES
+        file.seek(0)
+        raw_data = file.read()
+
+        # 2. DETECT ZIP vs CSV
         if file.name.lower().endswith('.zip'):
-            with zipfile.ZipFile(file) as z:
+            with zipfile.ZipFile(io.BytesIO(raw_data)) as z:
                 for z_name in z.namelist():
                     if z_name.lower().endswith('.csv') and not z_name.startswith('__MACOSX'):
                         with z.open(z_name) as f:
-                            content = f.read().decode('utf-8', errors='replace')
-                            parsed = parse_bank_file_content(content, z_name)
-                            if parsed is not None: yield z_name, parsed
+                            z_bytes = f.read()
+                            yield _decode_and_parse(z_name, z_bytes, encodings)
         else:
-            file.seek(0)
-            content = file.read().decode('utf-8', errors='replace')
-            parsed = parse_bank_file_content(content, file.name)
-            if parsed is not None: yield file.name, parsed
+            yield _decode_and_parse(file.name, raw_data, encodings)
+
+
+def _decode_and_parse(filename, raw_bytes, encodings):
+    """Helper to try multiple encodings."""
+    content = None
+    last_error = None
+
+    # Try decoding
+    for enc in encodings:
+        try:
+            content = raw_bytes.decode(enc)
+            # Quick sanity check: if it decodes but is garbage, pandas will fail later.
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if content is None:
+        # Fallback to replace
+        content = raw_bytes.decode('utf-8', errors='replace')
+
+    try:
+        df = parse_bank_file_content(content, filename)
+        if df is None:
+            return filename, None, "Unknown format or empty file."
+        return filename, df, None
+    except Exception as e:
+        return filename, None, str(e)

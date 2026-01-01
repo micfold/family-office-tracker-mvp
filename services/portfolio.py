@@ -1,6 +1,7 @@
 # services/portfolio.py
 import pandas as pd
 from services.auth import AuthService
+from modules.portfolio import process_snapshot, process_history
 
 
 class PortfolioService:
@@ -15,13 +16,18 @@ class PortfolioService:
         data = {"snapshot": None, "history": None}
 
         if s_path.exists():
-            data["snapshot"] = pd.read_csv(s_path)
-            # Add processing/cleaning logic here if needed
+            try:
+                df = pd.read_csv(s_path)
+                data["snapshot"] = process_snapshot(df)
+            except Exception as e:
+                print(f"Error loading snapshot: {e}")
 
         if h_path.exists():
-            data["history"] = pd.read_csv(h_path)
-            data["history"]['Date'] = pd.to_datetime(data["history"]['Date'])
-
+            try:
+                df = pd.read_csv(h_path)
+                data["history"] = process_history(df)
+            except Exception as e:
+                print(f"Error processing history: {e}")
         return data
 
     def save_file(self, file_obj, type_key):

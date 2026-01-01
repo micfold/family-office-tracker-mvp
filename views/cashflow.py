@@ -3,7 +3,9 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from services.ledger import LedgerService
-from core.enums import ExpenseCategory, IncomeCategory, TransactionType
+from core.enums import ExpenseCategory, IncomeCategory, TransactionType, CATEGORY_METADATA
+from modules import analytics, processing
+from components import visuals
 
 
 def render_view():
@@ -12,9 +14,14 @@ def render_view():
     service = LedgerService()
     ledger_df = service.load_ledger()
 
-    tab1, tab2 = st.tabs(["📥 Upload & Entry", "📜 Ledger Data"])
+    # Use state to control tab switching if needed
+    if 'active_tab' not in st.session_state: st.session_state.active_tab = "entry"
 
-    with tab1:
+    # Create the 4 main tabs from Master
+    tabs = st.tabs(["📥 Entry & Upload", "🛠️ Data Quality", "⚖️ Reconciliation", "📜 Ledger Data"])
+
+    # --- TAB 1: ENTRY ---
+    with tabs[0]:
         c1, c2 = st.columns(2)
 
         # Manual Entry
@@ -25,22 +32,15 @@ def render_view():
                 desc = st.text_input("Description")
                 amt = st.number_input("Amount", step=100.0)
 
-                # Dynamic Selectbox based on Enums
-                t_type = st.selectbox("Type", [t.value for t in TransactionType])
-
-                cat_options = []
-                if t_type == TransactionType.EXPENSE.value:
-                    cat_options = [e.value for e in ExpenseCategory]
-                elif t_type == TransactionType.INCOME.value:
-                    cat_options = [e.value for e in IncomeCategory]
-
-                cat = st.selectbox("Category", cat_options)
+                # Dynamic Type/Category
+                t_type = st.selectbox("Type", list(CATEGORY_METADATA.keys()))
+                cat = st.selectbox("Category", CATEGORY_METADATA[t_type])
 
                 if st.form_submit_button("Add Transaction"):
                     new_row = {
                         'Date': pd.to_datetime(d),
                         'Description': desc,
-                        'Amount': amt,  # Ensure logic handles sign conventions
+                        'Amount': amt,
                         'Currency': 'CZK',
                         'Category': cat,
                         'Type': t_type,
@@ -51,10 +51,10 @@ def render_view():
                     st.success("Added!")
                     st.rerun()
 
-        # File Upload
+        # Batch Upload
         with c2:
             st.subheader("Batch Upload")
-            files = st.file_uploader("Bank CSVs", accept_multiple_files=True)
+            files = st.file_uploader("Bank CSVs/ZIPs", accept_multiple_files=True)
             if files and st.button("Process Files"):
                 new_df = service.process_upload(files)
                 if not new_df.empty:
@@ -63,5 +63,44 @@ def render_view():
                     st.success(f"Imported {len(new_df)} transactions!")
                     st.rerun()
 
-    with tab2:
+    # --- TAB 2: DATA QUALITY (Restored) ---
+    with tabs[1]:
+        st.subheader("Data Quality Workbench")
+        if not ledger_df.empty:
+            # Suggestions
+            sug = processing.suggest_patterns(ledger_df)
+            if not sug.empty:
+                c1, c2 = st.columns([2, 1])
+                with c1:
+                    st.markdown("#### Uncategorized Patterns")
+                    st.dataframe(sug[['Description', 'Count', 'Total_Value']], width='stretch')
+                with c2:
+                    st.info("💡 Tip: Add these patterns to `core/config.py` to auto-categorize them in the future.")
+            else:
+                st.success("No recurring uncategorized patterns found!")
+
+            st.divider()
+            st.markdown("#### Uncategorized Transactions")
+            uncat = ledger_df[ledger_df['Category'] == 'Uncategorized']
+            st.dataframe(uncat, width='stretch')
+        else:
+            st.info("Ledger is empty.")
+
+    # --- TAB 3: RECONCILIATION (Restored) ---
+    with tabs[2]:
+        st.subheader("Balance Reconciliation")
+        if not ledger_df.empty:
+            c1, c2 = st.columns([1, 3])
+            with c1:
+                chk_date = st.date_input("Checkpoint Date", value=date.today())
+                chk_bal = st.number_input("Balance on Date", value=0.0)
+
+            # Logic: Calculate running balance
+            rec_df = analytics.calculate_running_balance(ledger_df, chk_date, chk_bal)
+            visuals.render_balance_history(rec_df)
+        else:
+            st.info("Ledger is empty.")
+
+    # --- TAB 4: DATA ---
+    with tabs[3]:
         st.dataframe(ledger_df, width='stretch')
