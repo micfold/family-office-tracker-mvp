@@ -4,6 +4,7 @@ from datetime import date
 from src.container import get_container
 from src.domain.enums import CATEGORY_METADATA
 from src.views.components.charts import render_spending_trend
+from config import UI_CATEGORIES
 
 
 def render_entry_upload_tab(service):
@@ -16,8 +17,17 @@ def render_entry_upload_tab(service):
             d = st.date_input("Date", date.today())
             desc = st.text_input("Description")
             amt = st.number_input("Amount", step=100.0)
-            t_type = st.selectbox("Type", list(CATEGORY_METADATA.keys()))
-            cat = st.selectbox("Category", CATEGORY_METADATA[t_type]['class'])  # Fix access if structure differs
+
+            # Safe retrieval of keys
+            type_options = list(UI_CATEGORIES.keys())
+            t_type = st.selectbox("Type", type_options)
+
+            # Helper to get categories safely
+            cat_options = UI_CATEGORIES.get(t_type, {}).get('class', ["Uncategorized"])
+            if isinstance(cat_options, str):
+                cat_options = [cat_options]
+
+            cat = st.selectbox("Category", cat_options)
 
             if st.form_submit_button("Add Transaction"):
                 service.add_manual_transaction({
@@ -25,7 +35,7 @@ def render_entry_upload_tab(service):
                     'description': desc,
                     'amount': amt,
                     'category': cat,
-                    'type': t_type,
+                    'transaction_type': t_type,
                     'batch_id': 'Manual'
                 })
                 st.success("Added!")
@@ -42,30 +52,8 @@ def render_entry_upload_tab(service):
                 st.rerun()
 
 
-def render_ledger_data_tab(ledger_df):
-    if not ledger_df.empty:
-        # We use Data Editor to allow quick fixes
-        # Note: Implementing write-back from Data Editor to Repo requires extra wiring
-        # For now, read-only with sort
-        st.dataframe(ledger_df.sort_values('Date', ascending=False), use_container_width=True)
-    else:
-        st.info("Ledger is empty.")
-
-
-def render_batch_management_tab(service):
-    history = service.get_batch_history()
-    if not history.empty:
-        st.dataframe(history, use_container_width=True)
-
-        selected_batch = st.selectbox("Select Batch to Delete", history['Batch_ID'].unique())
-        if st.button("🗑️ Delete Batch", type="primary"):
-            service.delete_batch(selected_batch)
-            st.warning(f"Deleted batch {selected_batch}")
-            st.rerun()
-
-
 def render_view():
-    st.title("💸 Cashflow & Ledger (Refactored)")
+    st.title("💸 Cashflow & Ledger")
 
     # Dependency Injection
     container = get_container()
@@ -74,7 +62,7 @@ def render_view():
     # Load Data
     ledger_df = service.get_recent_transactions()
 
-    tabs = st.tabs(["📥 Entry & Upload", "📜 Ledger Data", "📂 Batch Management"])
+    tabs = st.tabs(["📊 Analytics", "📥 Entry & Upload", "📜 Ledger Data", "📂 Batch Management"])
 
     # --- TAB 1: ANALYTICS ---
     with tabs[0]:

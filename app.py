@@ -1,6 +1,6 @@
 # app.py
 import streamlit as st
-from services.auth import AuthService # Auth hasn't been fully refactored yet, keeping legacy for now
+from src.application.auth_service import AuthService
 
 # Import NEW Views
 from src.views.pages import dashboard_view

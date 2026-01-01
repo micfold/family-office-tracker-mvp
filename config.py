@@ -1,10 +1,11 @@
+# config.py
 from src.domain.enums import TransactionType, ExpenseCategory, IncomeCategory, TransferCategory, InvestmentCategory
 
 # Default Filenames
 DEFAULT_PORTFOLIO_FILE = "Snowball Holdings.csv"
 DEFAULT_HISTORY_FILE = "Snowball History.csv"
 
-# Map Categories to "Fixed" vs "Variable" (Restored from your settings.py)
+# Map Categories to "Fixed" vs "Variable"
 CATEGORY_TYPE_MAP = {
     IncomeCategory.SALARY.value: "Income",
     IncomeCategory.DIVIDENDS.value: "Income",
@@ -29,37 +30,22 @@ CATEGORY_TYPE_MAP = {
     "Uncategorized": "Variable"
 }
 
-# Advanced Global Rules with Directionality
+# Advanced Global Rules
 GLOBAL_RULES = [
     # --- INVESTMENTS ---
-    {'pattern': 'Trading 212', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT.value,
-     'direction': 'negative'},
+    {'pattern': 'Trading 212', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT.value, 'direction': 'negative'},
     {'pattern': 'XTB', 'category': 'Investment Deposit', 'type': TransactionType.INVESTMENT.value, 'direction': 'negative'},
 
-    # --- COMPLEX PATTERNS (User Requested) ---
-
-    # "HM": Refund if positive, Shopping if negative
-    {'pattern': 'HM ', 'category': IncomeCategory.REFUNDS.value, 'type': TransactionType.INCOME.value,
-     'direction': 'positive'},
-    {'pattern': 'HM ', 'category': ExpenseCategory.SHOPPING.value, 'type': TransactionType.EXPENSE.value,
-     'direction': 'negative'},
-
-    # "FÚ" (Tax Office): Refund if positive, Expense if negative
-    {'pattern': 'FÚ pro', 'category': IncomeCategory.REFUNDS.value, 'type': TransactionType.INCOME.value,
-     'direction': 'positive'},
-    {'pattern': 'FÚ pro', 'category': ExpenseCategory.OTHER.value, 'type': TransactionType.EXPENSE.value,
-     'direction': 'negative'},  # Fines/Taxes
-
-    # "Raiffeisenbank": Salary vs Fees/Travel
-    {'pattern': 'Raiffeisenbank', 'category': IncomeCategory.SALARY.value, 'type': TransactionType.INCOME.value,
-     'direction': 'positive'},
-    {'pattern': 'Raiffeisenbank', 'category': ExpenseCategory.OTHER.value, 'type': TransactionType.EXPENSE.value,
-     'direction': 'negative'},
+    # --- COMPLEX PATTERNS ---
+    {'pattern': 'HM ', 'category': IncomeCategory.REFUNDS.value, 'type': TransactionType.INCOME.value, 'direction': 'positive'},
+    {'pattern': 'HM ', 'category': ExpenseCategory.SHOPPING.value, 'type': TransactionType.EXPENSE.value, 'direction': 'negative'},
+    {'pattern': 'FÚ pro', 'category': IncomeCategory.REFUNDS.value, 'type': TransactionType.INCOME.value, 'direction': 'positive'},
+    {'pattern': 'FÚ pro', 'category': ExpenseCategory.OTHER.value, 'type': TransactionType.EXPENSE.value, 'direction': 'negative'},
+    {'pattern': 'Raiffeisenbank', 'category': IncomeCategory.SALARY.value, 'type': TransactionType.INCOME.value, 'direction': 'positive'},
+    {'pattern': 'Raiffeisenbank', 'category': ExpenseCategory.OTHER.value, 'type': TransactionType.EXPENSE.value, 'direction': 'negative'},
 
     # --- STANDARD PATTERNS ---
     {'pattern': 'Hypoteka', 'category': ExpenseCategory.HOUSING.value, 'type': TransactionType.EXPENSE.value},
-
-    # Lifestyle
     {'pattern': 'Lekarna', 'category': ExpenseCategory.HEALTH.value, 'type': TransactionType.EXPENSE.value},
     {'pattern': 'Dr. Max', 'category': ExpenseCategory.HEALTH.value, 'type': TransactionType.EXPENSE.value},
     {'pattern': 'Albert', 'category': ExpenseCategory.GROCERIES.value, 'type': TransactionType.EXPENSE.value},
@@ -71,7 +57,7 @@ GLOBAL_RULES = [
     {'pattern': 'Spotify', 'category': ExpenseCategory.SUBSCRIPTIONS.value, 'type': TransactionType.EXPENSE.value}
 ]
 
-# UI Options
+# UI Options (Used for Dropdowns)
 UI_CATEGORIES = {
     TransactionType.INCOME.value: [e.value for e in IncomeCategory],
     TransactionType.EXPENSE.value: [e.value for e in ExpenseCategory],

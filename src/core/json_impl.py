@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from src.domain.repositories.asset_repository import AssetRepository
 from src.domain.models.MAsset import Asset
-from services.auth import AuthService
+from src.application.auth_service import AuthService
 
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):

@@ -2,7 +2,7 @@ import pandas as pd
 from typing import List
 from uuid import UUID
 from pathlib import Path
-from services.auth import AuthService
+from src.application.auth_service import AuthService
 from src.domain.repositories.transaction_repository import TransactionRepository
 from src.domain.models.MTransaction import Transaction
 

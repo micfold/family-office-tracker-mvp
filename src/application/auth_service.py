@@ -1,4 +1,4 @@
-# services/auth.py
+# services/auth_service.py
 import streamlit as st
 import json
 import hashlib

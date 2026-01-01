@@ -5,7 +5,7 @@ from uuid import UUID
 from pathlib import Path
 from decimal import Decimal
 
-from services.auth import AuthService
+from src.application.auth_service import AuthService
 from src.domain.repositories.portfolio_repository import PortfolioRepository
 from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
 from src.domain.enums import Currency
