@@ -1,52 +1,28 @@
 import streamlit as st
 from decimal import Decimal
-from services.auth import AuthService
-from services.ledger import LedgerService
-from src.core.json_impl import JsonAssetRepository
-from src.application.asset_service import AssetService
+from src.container import get_container
 from src.domain.enums import AssetCategory
 
 
 def render_view():
     st.title("🏛️ Assets & Liabilities")
 
-    # Dependency Injection
-    auth = AuthService()
-    repo = JsonAssetRepository()
-    service = AssetService(repo)
+    # 1. Get Services
+    container = get_container()
+    service = container['asset']
+    # We grab the Summary service just for the Top-Level KPI consistency
+    summary_data = container['summary'].get_executive_summary()
 
-    # Legacy Service for the "Operating Cash" metric
-    ls = LedgerService()
-    ledger_df = ls.load_ledger()
-    ledger_balance = ledger_df['Amount'].sum() if not ledger_df.empty else 0
-
-    # 1. Data Loading
+    # 2. Operations
     assets = service.get_user_assets()
 
-    # 2. Migration Check
-    # If we have no new assets, but the old file exists, offer migration
-    legacy_path = auth.get_file_path("assets.json")
-    if not assets and legacy_path.exists():
-        st.warning("⚠️ Legacy data found.")
-        if st.button("Migrate to V2 Architecture"):
-            if service.migrate_legacy_data(legacy_path):
-                st.success("Migration complete! Please refresh.")
-                st.rerun()
-            else:
-                st.error("Migration failed.")
-        st.divider()
-
-    # 3. KPI Header
-    snapshot = service.get_net_worth_snapshot()
-    # Add Ledger Balance to Total Cash for the KPI (Visual only)
-    # Note: We don't save Ledger Balance as an Asset yet to avoid duplication
-    adjusted_net_worth = snapshot.net_worth + Decimal(ledger_balance)
-
+    # 3. KPI Header (Now uses the consistent Summary Service)
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Net Worth", f"{adjusted_net_worth:,.0f} CZK")
-    k2.metric("Hard Assets", f"{snapshot.total_assets:,.0f} CZK")
-    k3.metric("Liabilities", f"{snapshot.total_liabilities:,.0f} CZK")
-    k4.metric("Operating Cash (Ledger)", f"{ledger_balance:,.0f} CZK")
+    k1.metric("Net Worth", f"{summary_data.net_worth:,.0f} CZK")
+    k2.metric("Hard Assets",
+              f"{summary_data.total_assets - summary_data.liquid_cash - summary_data.invested_assets:,.0f} CZK")  # Approx for MVP
+    k3.metric("Liabilities", f"{summary_data.total_liabilities:,.0f} CZK")
+    k4.metric("Operating Cash", f"{summary_data.liquid_cash:,.0f} CZK")
 
     st.divider()
 
@@ -71,46 +47,29 @@ def render_view():
                 for asset in current_cat_assets:
                     with st.container(border=True):
                         c_name, c_val, c_btn = st.columns([3, 2, 1])
-
-                        # Edit Name
-                        new_name = c_name.text_input(
-                            "Name",
-                            value=asset.name,
-                            key=f"name_{asset.id}",
-                            label_visibility="collapsed"
-                        )
-
-                        # Edit Value
-                        new_val = c_val.number_input(
-                            "Value",
-                            value=float(asset.value),
-                            key=f"val_{asset.id}",
-                            step=1000.0,
-                            label_visibility="collapsed"
-                        )
+                        new_name = c_name.text_input("Name", value=asset.name, key=f"name_{asset.id}",
+                                                     label_visibility="collapsed")
+                        new_val = c_val.number_input("Value", value=float(asset.value), key=f"val_{asset.id}",
+                                                     step=1000.0, label_visibility="collapsed")
 
                         # Save/Delete Actions
                         with c_btn:
-                            if st.button("💾", key=f"save_{asset.id}", help="Save Changes"):
+                            if st.button("💾", key=f"save_{asset.id}"):
                                 asset.name = new_name
                                 service.update_asset_value(asset, Decimal(new_val))
-                                st.toast(f"Updated {asset.name}")
+                                st.toast("Saved")
                                 st.rerun()
-
-                            if st.button("🗑️", key=f"del_{asset.id}", help="Delete Asset"):
+                            if st.button("🗑️", key=f"del_{asset.id}"):
                                 service.delete_asset(asset.id)
                                 st.rerun()
-            else:
-                st.caption(f"No {category.value} assets found.")
+            st.divider()
 
             # --- Add New Asset ---
             st.divider()
             with st.expander(f"➕ Add New {category.value}"):
                 with st.form(f"add_{category.name}"):
-                    new_asset_name = st.text_input("Asset Name", placeholder="e.g. Summer House")
-                    new_asset_val = st.number_input("Value", min_value=0.0, step=1000.0)
-
-                    if st.form_submit_button("Create Asset"):
-                        service.create_simple_asset(new_asset_name, category, Decimal(new_asset_val))
-                        st.success("Asset Created!")
+                    n_name = st.text_input("Name")
+                    n_val = st.number_input("Value")
+                    if st.form_submit_button("Create"):
+                        service.create_simple_asset(n_name, category, Decimal(n_val))
                         st.rerun()

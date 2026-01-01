@@ -1,14 +1,12 @@
 import streamlit as st
 import plotly.express as px
-from src.domain.repositories.sql_repository import SqlPortfolioRepository
-from src.application.portfolio_service import PortfolioService
-
+from src.container import get_container
 
 def render_view():
     st.title("📈 Investment Portfolio")
 
-    repo = SqlPortfolioRepository()
-    service = PortfolioService(repo)
+    container = get_container()
+    service = container['portfolio']
 
     # 1. Uploaders
     with st.expander("Update Data Sources"):
