@@ -1,6 +1,7 @@
 import streamlit as st
 import plotly.express as px
 from src.container import get_container
+from src.views.components.charts import render_portfolio_allocation, render_invested_capital_curve
 
 def render_view():
     st.title("📈 Investment Portfolio")
@@ -42,22 +43,11 @@ def render_view():
 
     # 4. Visuals (Top Row)
     c1, c2 = st.columns(2)
-
     with c1:
-        st.subheader("Allocation by Sector")
-        if positions:
-            # Prepare Data for Plotly
-            data = [{"Sector": p.sector, "Value": float(p.market_value)} for p in positions]
-            fig = px.pie(data, values='Value', names='Sector', hole=0.4)
-            st.plotly_chart(fig, use_container_width=True)
-
+        render_portfolio_allocation(positions)
     with c2:
-        st.subheader("Invested Capital Curve")
         curve_df = service.get_invested_capital_curve()
-        if not curve_df.empty:
-            fig = px.area(curve_df, x='Date', y='Invested Capital')
-            fig.update_traces(line_color='#2980b9', fillcolor='rgba(41, 128, 185, 0.3)')
-            st.plotly_chart(fig, use_container_width=True)
+        render_invested_capital_curve(curve_df)
 
     # 5. Dividend Intelligence
     st.subheader("Dividend Intelligence")

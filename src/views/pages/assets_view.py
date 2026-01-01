@@ -2,7 +2,7 @@ import streamlit as st
 from decimal import Decimal
 from src.container import get_container
 from src.domain.enums import AssetCategory
-
+from src.views.components.kpi_cards import render_executive_summary_cards
 
 def render_view():
     st.title("🏛️ Assets & Liabilities")
@@ -17,14 +17,7 @@ def render_view():
     assets = service.get_user_assets()
 
     # 3. KPI Header (Now uses the consistent Summary Service)
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Net Worth", f"{summary_data.net_worth:,.0f} CZK")
-    k2.metric("Hard Assets",
-              f"{summary_data.total_assets - summary_data.liquid_cash - summary_data.invested_assets:,.0f} CZK")  # Approx for MVP
-    k3.metric("Liabilities", f"{summary_data.total_liabilities:,.0f} CZK")
-    k4.metric("Operating Cash", f"{summary_data.liquid_cash:,.0f} CZK")
-
-    st.divider()
+    render_executive_summary_cards(summary_data)
 
     # 4. Asset Management Interface
     # We group assets by category into Tabs

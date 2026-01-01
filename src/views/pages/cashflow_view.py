@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-from src.application.ledger_service import LedgerService
-from src.domain.repositories.sql_repository import SqlTransactionRepository
-from src.domain.enums import CATEGORY_METADATA, TransactionType
-from config import UI_CATEGORIES
+from src.container import get_container
+from src.domain.enums import CATEGORY_METADATA
+from src.views.components.charts import render_spending_trend
 
 
 def render_entry_upload_tab(service):
@@ -69,22 +68,36 @@ def render_view():
     st.title("💸 Cashflow & Ledger (Refactored)")
 
     # Dependency Injection
-    repo = SqlTransactionRepository()
-    service = LedgerService(repo)
+    container = get_container()
+    service = container['ledger']
 
     # Load Data
     ledger_df = service.get_recent_transactions()
 
     tabs = st.tabs(["📥 Entry & Upload", "📜 Ledger Data", "📂 Batch Management"])
 
-    # --- TAB 1: ENTRY & UPLOAD ---
+    # --- TAB 1: ANALYTICS ---
     with tabs[0]:
+        st.subheader("Cashflow Trends")
+        render_spending_trend(ledger_df)
+
+    # --- TAB 2: ENTRY ---
+    with tabs[1]:
         render_entry_upload_tab(service)
 
-    # --- TAB 2: DATA GRID ---
-    with tabs[1]:
-        render_ledger_data_tab(ledger_df)
-
-    # --- TAB 3: BATCH MANAGEMENT ---
+    # --- TAB 3: DATA ---
     with tabs[2]:
-        render_batch_management_tab(service)
+        if not ledger_df.empty:
+            st.dataframe(ledger_df.sort_values('Date', ascending=False), use_container_width=True)
+        else:
+            st.info("No data found.")
+
+    # --- TAB 4: BATCHES ---
+    with tabs[3]:
+        history = service.get_batch_history()
+        if not history.empty:
+            st.dataframe(history, use_container_width=True)
+            sel = st.selectbox("Select Batch", history['Batch_ID'].unique())
+            if st.button("Delete Batch"):
+                service.delete_batch(sel)
+                st.rerun()
