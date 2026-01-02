@@ -58,6 +58,24 @@ def _clean_numeric_portfolio(val) -> Decimal:
     except:
         return Decimal(0)
 
+
+def _detect_csv_df(file_obj) -> pd.DataFrame:
+    """Helper to safely read CSVs with varying separators/encodings."""
+    file_obj.seek(0)
+    # Try reading first few lines to detect separator
+    sample = file_obj.read(1024)
+    file_obj.seek(0)
+
+    # Simple separator detection
+    sep = ';' if b';' in sample and sample.count(b';') > sample.count(b',') else ','
+
+    try:
+        return pd.read_csv(file_obj, sep=sep)
+    except Exception:
+        # Retry with different encoding if default fails
+        file_obj.seek(0)
+        return pd.read_csv(file_obj, sep=sep, encoding='cp1250')
+
 def clean_currency(value):
     """Cleaner for Bank CSVs (legacy helper)."""
     if pd.isna(value): return 0.0
@@ -133,38 +151,33 @@ def parse_portfolio_snapshot(file_obj, user_id) -> List[InvestmentPosition]:
 
 
 def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
-    """Parses a history/transaction log CSV into InvestmentEvent objects."""
     try:
-        file_obj.seek(0)
-        df = pd.read_csv(file_obj)
+        df = _detect_csv_df(file_obj)
         events = []
 
         for _, row in df.iterrows():
-            # 1. FX Conversion Logic
             curr = str(row.get('Currency', 'CZK')).upper()
             rate = Decimal(FX_RATES.get(curr, 1.0))
 
-            # 2. Extract Data
             raw_amt = _clean_numeric_portfolio(row.get('Amount') or row.get('Total', 0))
-
-            # Normalize to CZK for the 'total_amount' field
             amt_czk = raw_amt * rate
 
-            # 3. Create Event
+            # Handle date formats
+            raw_date = row.get('Date')
+            try:
+                # Try dayfirst=True for EU, fallback automatically
+                dt = pd.to_datetime(raw_date, dayfirst=True)
+            except:
+                dt = pd.to_datetime(raw_date)
+
             evt = InvestmentEvent(
-                date=pd.to_datetime(row.get('Date')),
+                date=dt,
                 ticker=str(row.get('Symbol') or row.get('Ticker', 'CASH')),
                 event_type=str(row.get('Event') or row.get('Action', 'UNK')),
-
-                # Optional details
                 quantity=_clean_numeric_portfolio(row.get('Quantity')),
                 price_per_share=_clean_numeric_portfolio(row.get('Price')),
-
-                # Standardized Money
                 total_amount=amt_czk,
                 currency=Currency.CZK,
-
-                # Fee could be added here if present in CSV
                 owner=user_id
             )
             events.append(evt)

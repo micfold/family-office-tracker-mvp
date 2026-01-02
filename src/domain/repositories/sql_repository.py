@@ -9,13 +9,13 @@ from src.core.database import engine
 from src.domain.models.MAsset import Asset
 from src.domain.models.MTransaction import Transaction
 from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
-from src.domain.models.MLiability import Liability  # <--- NEW
+from src.domain.models.MLiability import Liability
 
 # Repository Interfaces
 from src.domain.repositories.asset_repository import AssetRepository
 from src.domain.repositories.transaction_repository import TransactionRepository
 from src.domain.repositories.portfolio_repository import PortfolioRepository
-from src.domain.repositories.liability_repository import LiabilityRepository  # <--- NEW
+from src.domain.repositories.liability_repository import LiabilityRepository
 
 
 # --- ASSET REPO ---
@@ -115,5 +115,7 @@ class SqlPortfolioRepository(PortfolioRepository):
 
     def save_events(self, events: List[InvestmentEvent]):
         with Session(engine) as session:
+            uid = events[0].owner
+            session.exec(delete(InvestmentEvent).where(InvestmentEvent.owner == uid))
             session.add_all(events)
             session.commit()
