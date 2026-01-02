@@ -1,17 +1,18 @@
 # app.py
 import streamlit as st
-from services.auth import AuthService
-from services.ledger import LedgerService
-from services.portfolio import PortfolioService
-from views import dashboard, assets, cashflow, portfolio
+from src.application.auth_service import AuthService
+
+# Import NEW Views
+from src.views.pages import dashboard_view
+from src.views.pages import assets_view
+from src.views.pages import cashflow_view
+from src.views.pages import portfolio_view
 
 # Page Config
 st.set_page_config(page_title="Family Office HQ", layout="wide", page_icon="🏛️")
 
-# Initialize Services
+# Initialize Auth
 auth = AuthService()
-ls = LedgerService()
-ps = PortfolioService()
 
 # --- 1. LOGIN SCREEN ---
 if not auth.current_user:
@@ -20,74 +21,31 @@ if not auth.current_user:
         st.title("🏛️ Family Office Tracker")
         with st.form("login_form"):
             st.subheader("Secure Login")
-
-            username = st.text_input(
-                "Username",
-                placeholder="e.g. username"
-            )
-            password = st.text_input(
-                "Password",
-                type="password",
-                placeholder = "e.g. pass"
-            )
-
-            submitted = st.form_submit_button(
-                "Enter Office",
-                type="primary"
-            )
-
-            if submitted:
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            if st.form_submit_button("Enter Office", type="primary"):
                 if auth.login(username, password):
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
-
     st.stop()
 
-# --- 2. SIDEBAR NAVIGATION ---
+# --- 2. SIDEBAR ---
 user = auth.current_user
 with st.sidebar:
     st.markdown(f"### 👤 {user['username']}")
-
-    # Navigation
-    nav = st.radio(
-        "Control Tower",
-        ["Dashboard", "Assets", "Cashflow", "Portfolio"]
-    )
-
+    nav = st.selectbox("Control Tower", ["Dashboard", "Assets", "Cashflow", "Portfolio"])  # compact picker
     st.divider()
-
-    # --- STATUS INDICATORS (Restored from Master) ---
-    st.markdown("#### 📡 System Status")
-
-    # Ledger Status
-    ledger = ls.load_ledger()
-    if not ledger.empty:
-        st.success(f"Ledger: {len(ledger)} Tx")
-    else:
-        st.warning("Ledger: Empty")
-
-    # Portfolio Status
-    p_data = ps.load_data()
-    s_ok = p_data['snapshot'] is not None
-    h_ok = p_data['history'] is not None
-
-    if s_ok or h_ok:
-        st.success(f"Portfolio: {'Snap ' if s_ok else ''}{'+ Hist' if h_ok else ''}")
-    else:
-        st.warning("Portfolio: No Data")
-
-    st.divider()
-    if st.button("Log Out", type="secondary"):
+    if st.button("Log Out"):
         auth.logout()
         st.rerun()
 
-# --- 3. ROUTER ---
+# --- 3. ROUTING ---
 if nav == "Dashboard":
-    dashboard.render_view()
+    dashboard_view.render_view()
 elif nav == "Assets":
-    assets.render_view()
+    assets_view.render_view()
 elif nav == "Cashflow":
-    cashflow.render_view()
+    cashflow_view.render_view()
 elif nav == "Portfolio":
-    portfolio.render_view()
+    portfolio_view.render_view()
