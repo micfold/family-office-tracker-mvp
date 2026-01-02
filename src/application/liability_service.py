@@ -25,14 +25,12 @@ class LiabilityService:
         return self.repo.get_all(uid)
 
     def create_liability(self,
-                         name: str,
                          amount: Decimal,
                          liability_type: LiabilityCategory,
                          **kwargs) -> Liability:
         uid = _get_current_user_id()
 
         new_liab = Liability(
-            name=name,
             amount=abs(amount),  # Store as positive debt
             liability_type=liability_type,
             owner=uid,
@@ -54,7 +52,7 @@ class LiabilityService:
 
         self.repo.save(liability)
 
-    def delete_liability(self, liability_id: UUID) -> None:
+    def delete_liability(self, liability_id: UUID):
         self.repo.delete(liability_id)
 
     def get_total_liabilities(self) -> Decimal:

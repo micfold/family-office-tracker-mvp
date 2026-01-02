@@ -12,6 +12,7 @@ class TaxLot(SQLModel, table=True):
     Tracks a specific purchase of an asset for tax purposes.
     Essential for Czech 'Time Test' (3 years).
     """
+    __table_args__ = {'extend_existing': True}
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     ticker: str = Field(index=True)
     date_acquired: date = Field(index=True)

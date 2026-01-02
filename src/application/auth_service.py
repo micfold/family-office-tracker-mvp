@@ -136,11 +136,11 @@ class AuthService:
         except Exception as e:
             logger.exception("Failed to create user directory %s: %s", user_path, e)
 
-        # Session keeps the readable username, but storage now only has hashed username
+        # --- 4. SUCCESS ---
+        st.session_state["logged_in"] = True
         st.session_state["user"] = {
-            "username": username,
             "id": user_id,
-            "path": user_path
+            "username": clean_name
         }
         return True
 
@@ -151,9 +151,10 @@ class AuthService:
         else:
             logger.debug("Logout called but no user in session")
         st.session_state.pop("user", None)
+        st.session_state.pop("logged_in", None)
 
     @property
-    def current_user(self):
+    def current_user(self) -> Optional[dict]:
         return st.session_state.get("user")
 
     def get_file_path(self, filename: str) -> Path:

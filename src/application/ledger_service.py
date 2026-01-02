@@ -6,6 +6,7 @@ from datetime import datetime
 from src.application.ingestion_service import IngestionService
 from src.domain.repositories.transaction_repository import TransactionRepository
 from src.domain.models.MTransaction import Transaction
+from src.views.models.transaction_view_model import TransactionViewModel
 
 
 def _get_user_id() -> UUID:
@@ -18,7 +19,9 @@ class LedgerService:
         self.ingestion_svc = ingestion_service
 
     def get_recent_transactions(self) -> pd.DataFrame:
-        return self.repo.get_as_dataframe(_get_user_id())
+        transactions = self.repo.get_all(_get_user_id())
+        view_models = [self._create_view_model(tx) for tx in transactions]
+        return pd.DataFrame([vm.__dict__ for vm in view_models])
 
     def get_batch_history(self) -> pd.DataFrame:
         df = self.get_recent_transactions()
@@ -35,47 +38,66 @@ class LedgerService:
         stats.rename(columns={'batch_id': 'Batch_ID'}, inplace=True)
         return stats.sort_values('Upload_Date', ascending=False)
 
-    def process_uploads(self, files) -> Tuple[int, List[str]]:
+    def process_uploads(self, files) -> Tuple[int, List[str], int]:
         user_id = _get_user_id()
         batch_id = f"Import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         # Fetch Existing Transactions for Deduplication
-        # We build a set of signatures: (date, amount, description)
         existing_txs = self.repo.get_all(user_id)
         existing_signatures = {
-            (t.date, t.amount, t.description) for t in existing_txs
+            (t.date.strftime('%Y-%m-%d'), t.amount, t.description) for t in existing_txs
         }
 
         transactions_to_save = []
         all_errors = []
         duplicates_count = 0
 
-        # Process Files
         for file in files:
-            content = file.getvalue()
-            txs, errors = self.ingestion_svc.process_file(file.name, content, user_id, batch_id)
+            newly_parsed_txs, errors = self.ingestion_svc.process_file(
+                filename=file.name,
+                content=file.getvalue(),
+                user_id=user_id,
+                batch_id=batch_id
+            )
+            all_errors.extend(errors)
 
-            if errors:
-                all_errors.extend(errors)
-
-            # Deduplicate
-            for tx in txs:
-                sig = (tx.date, tx.amount, tx.description)
-                if sig in existing_signatures:
+            for tx in newly_parsed_txs:
+                # Deduplication Check
+                signature = (tx.date.strftime('%Y-%m-%d'), tx.amount, tx.description)
+                if signature in existing_signatures:
                     duplicates_count += 1
-                else:
-                    transactions_to_save.append(tx)
-                    # Add to local signature set to prevent duplicates within the same upload batch
-                    existing_signatures.add(sig)
+                    continue
 
-        # Save Logic
+                transactions_to_save.append(tx)
+                existing_signatures.add(signature)
+
         if transactions_to_save:
             self.repo.save_bulk(transactions_to_save)
 
-        if duplicates_count > 0:
-            all_errors.append(f"Skipped {duplicates_count} duplicate transactions.")
+        return len(transactions_to_save), all_errors, duplicates_count
 
-        return len(transactions_to_save), all_errors
+    def _create_view_model(self, tx: Transaction) -> TransactionViewModel:
+        """
+        Creates a view model from a transaction.
+        """
+        is_internal = tx.category == "Internal Transfer"
+
+        return TransactionViewModel(
+            id=str(tx.id),
+            date=tx.date,
+            description=tx.description,
+            amount=tx.amount,
+            category=tx.category or "Uncategorized",
+            account=tx.account,
+            is_internal=is_internal,
+            is_duplicate=False,
+            owner=None,
+            raw_description=tx.description,
+            suggested_category=None,
+            confidence=None,
+            notes=tx.notes,
+            tags=tx.tags or []
+        )
 
     def delete_batch(self, batch_id: str):
         self.repo.delete_batch(batch_id, _get_user_id())

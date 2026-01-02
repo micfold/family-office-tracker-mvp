@@ -49,16 +49,24 @@ class TransferCategory(Enum):
 
 
 class ExpenseCategory(Enum):
-    HOUSING = "Housing (Mortgage/Rent)"
+    HOUSING = "Housing"
+    TRANSPORTATION = "Transportation"
+    FOOD = "Food"
     UTILITIES = "Utilities"
+    INSURANCE = "Insurance"
+    HEALTHCARE = "Healthcare"
+    SAVINGS = "Savings & Investments"
+    PERSONAL_SPENDING = "Personal Spending"
     GROCERIES = "Groceries"
     TRANSPORT = "Transport"
     SHOPPING = "Shopping"
-    HEALTH = "Health & Wellness"
-    SUBSCRIPTIONS = "Subscriptions"
+    HEALTH = "Health"
     TRAVEL = "Travel"
     EDUCATION = "Education"
-    OTHER = "Other Expense"
+    OTHER = "Other"
+    ENTERTAINMENT = "Entertainment"
+    SUBSCRIPTIONS = "Subscriptions"
+    MISCELLANEOUS = "Miscellaneous"
 
 
 class TransportSubcategory(Enum):
@@ -79,6 +87,14 @@ class IncomeCategory(Enum):
     BUSINESS = "Business Income"
     REFUNDS = "Refunds"
     OTHER = "Other Income"
+
+class RealEstateType(str, Enum):
+    PRIMARY_RESIDENCE = "Primary Residence"
+    SECONDARY_RESIDENCE = "Secondary Residence"
+    VACATION_HOME = "Vacation Home"
+    INVESTMENT_PROPERTY = "Investment Property"
+    LAND = "Land"
+    OTHER = "Other"
 
 CATEGORY_METADATA = {
     # Expense Categories mapped to Expense Types and Transaction Classes

@@ -1,22 +1,40 @@
-# src/core/database.py
-from sqlmodel import SQLModel, create_engine, Session
-from pathlib import Path
+from sqlalchemy import create_engine, event
+from sqlmodel import SQLModel
+import os
+import logging
 
-# Ensure data directory exists
-DATA_DIR = Path(".data")
-DATA_DIR.mkdir(exist_ok=True)
+# --- DB Setup ---
+DB_FILE = "data/cfo_tracker.db"
+DB_URL = f"sqlite:///{DB_FILE}"
 
-SQLITE_FILENAME = "family_office.db"
-SQLITE_URL = f"sqlite:///{DATA_DIR / SQLITE_FILENAME}"
+# Suppress verbose SQLAlchemy logging
+logging.basicConfig()
+logger = logging.getLogger(__name__)
 
-# connect_args={"check_same_thread": False} is needed for Streamlit's threading model
-engine = create_engine(SQLITE_URL, echo=False, connect_args={"check_same_thread": False})
+engine = create_engine(DB_URL, echo=False)
 
-def init_db():
-    """Creates the database tables based on imported models."""
+
+def init_db(recreate: bool = False):
+    """
+    Initializes the database, creating tables from SQLModel metadata.
+    """
+    # Import all models here so SQLModel knows about them
+    from src.domain.models.MAsset import Asset
+    from src.domain.models.MRule import CategoryRule
+
+    if recreate:
+        logger.info("Recreating database tables...")
+        SQLModel.metadata.drop_all(engine)
+
+    logger.info("Creating database tables if they don't exist...")
     SQLModel.metadata.create_all(engine)
 
-def get_session():
-    """Dependency for getting a database session."""
-    with Session(engine) as session:
-        yield session
+    # Ensure the data directory exists and is writable
+    db_dir = os.path.dirname(DB_FILE)
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir)
+    if not os.access(db_dir, os.W_OK):
+        raise PermissionError(f"Database directory is not writable: {db_dir}")
+
+    if recreate and os.path.exists(DB_FILE):
+        os.remove(DB_FILE)

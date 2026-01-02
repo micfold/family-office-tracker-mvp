@@ -26,7 +26,8 @@ def render_view():
                 st.rerun()
 
     # 3. Main Display (Passive)
-    metrics = vm.get_metrics()
+    with st.spinner("Loading..."):
+        metrics = vm.get_metrics()
 
     # KPI Row
     m1, m2, m3, m4 = st.columns(4)

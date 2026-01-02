@@ -6,6 +6,7 @@ import streamlit as st
 from src.domain.models.MAsset import Asset, NetWorthSnapshot
 from src.domain.enums import AssetCategory
 from src.domain.repositories.asset_repository import AssetRepository
+from src.views.utils import calculate_vehicle_amortization
 
 
 def _get_current_user_id() -> UUID:
@@ -49,40 +50,38 @@ class AssetService:
 
         self.repo.save(target)
 
-    def create_asset(self,
-                     name: str,
-                     category: AssetCategory,
-                     value: Decimal,
-                     **kwargs) -> Asset:
-        """
-        Universal create method that accepts extra fields via kwargs.
-        """
+    def create_asset(self, category: AssetCategory, value: Decimal, **kwargs):
         uid = _get_current_user_id()
 
-        new_asset = Asset(
-            name=name,
+        # For vehicles, the initial 'value' is the acquisition price.
+        if category == AssetCategory.VEHICLE:
+            kwargs['acquisition_price'] = value
+
+        asset = Asset(
             category=category,
             value=value,
             owner=uid,
-            **kwargs  # Pass all the extra fields (address, brand, etc.) to the model
+            **kwargs
         )
-        self.repo.save(new_asset)
-        return new_asset
+        self.repo.save(asset)
 
-    def create_simple_asset(self, name: str, category: AssetCategory, value: Decimal) -> Asset:
-        uid = _get_current_user_id()
-
-        new_asset = Asset(
-            name=name,
-            category=category,
-            value=value,
-            owner=uid
-        )
-        self.repo.save(new_asset)
-        return new_asset
-
-    def delete_asset(self, asset_id: UUID) -> None:
+    def delete_asset(self, asset_id: UUID):
         self.repo.delete(asset_id)
+
+    def run_vehicle_amortization_update(self, vehicle_id: UUID, current_kilometers: int):
+        """
+        Updates the market value of a specific vehicle based on new mileage.
+        """
+        uid = _get_current_user_id()
+        vehicle = next((a for a in self.get_user_assets() if a.id == vehicle_id and a.category == AssetCategory.VEHICLE), None)
+
+        if vehicle and vehicle.acquisition_price and vehicle.year_made:
+            estimated_value = calculate_vehicle_amortization(
+                acquisition_price=vehicle.acquisition_price,
+                year_made=vehicle.year_made,
+                kilometers_driven=current_kilometers
+            )
+            self.update_asset_value(vehicle.id, new_value=estimated_value, kilometers_driven=current_kilometers)
 
     def get_net_worth_snapshot(self) -> NetWorthSnapshot:
         assets = self.get_user_assets()

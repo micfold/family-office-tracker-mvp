@@ -6,6 +6,7 @@ from src.domain.enums import TransactionType
 
 
 class CategoryRule(SQLModel, table=True):
+    __table_args__ = {'extend_existing': True}
     id: UUID = Field(default_factory=uuid4, primary_key=True)
 
     # This is the text we embed (e.g. "Tesco Express")

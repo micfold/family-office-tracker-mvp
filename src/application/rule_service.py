@@ -47,3 +47,20 @@ class RuleService:
             return match['category'], TransactionType(match['type'])
 
         return "Uncategorized", None
+
+    def get_user_rules(self, user_id: UUID) -> list[dict]:
+        """
+        Retrieves all categorization rules for a specific user.
+        """
+        with Session(engine) as session:
+            rules = session.query(CategoryRule).filter(CategoryRule.owner == user_id).all()
+            return [{"pattern": r.pattern, "category": r.category} for r in rules]
+
+    def get_global_rules(self) -> list[dict]:
+        """
+        Retrieves all global categorization rules.
+        """
+        # In the current implementation, global rules are not distinguished from user rules.
+        # This method will return an empty list.
+        # For future implementation, global rules could be stored with a null owner.
+        return []
