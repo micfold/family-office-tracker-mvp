@@ -7,7 +7,8 @@ from src.domain.repositories.sql_repository import (
     SqlAssetRepository,
     SqlTransactionRepository,
     SqlPortfolioRepository,
-    SqlLiabilityRepository
+    SqlLiabilityRepository,
+    SqlTaxLotRepository
 )
 
 # Services
@@ -28,6 +29,7 @@ def get_container():
     ledger_repo = SqlTransactionRepository()
     portfolio_repo = SqlPortfolioRepository()
     liability_repo = SqlLiabilityRepository()
+    tax_repo = SqlTaxLotRepository()
 
     # Services
     auth_service = AuthService()
@@ -50,5 +52,6 @@ def get_container():
         "ledger": ledger_service,
         "portfolio": portfolio_service,
         "liability": liability_service,
-        "summary": summary_service
+        "summary": summary_service,
+        "tax_repo": tax_repo
     }

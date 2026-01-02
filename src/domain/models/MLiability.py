@@ -17,6 +17,10 @@ class Liability(SQLModel, table=True):
     currency: Currency = Field(default=Currency.CZK)
     owner: UUID = Field(index=True)
 
+    # Link to an Asset (e.g. Mortgage -> House)
+    # ondelete="SET NULL" ensures if Asset is deleted, Liability remains but unlinked
+    asset_id: Optional[UUID] = Field(default=None, foreign_key="asset.id", index=True)
+
     # Specific Liability Fields
     liability_type: LiabilityCategory
     institution: Optional[str] = None

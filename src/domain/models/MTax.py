@@ -1,33 +1,28 @@
-from pydantic import BaseModel, Field
-from decimal import Decimal
-from datetime import date
+# src/domain/models/MTax.py
 from typing import Optional
-import streamlit as st
 from uuid import UUID, uuid4
+from datetime import date
+from decimal import Decimal
+from sqlmodel import SQLModel, Field
+from sqlalchemy import Numeric
+import streamlit as st
 
-# TODO: Implement tax lot tracking and optimization logic
-class TaxLot(BaseModel):
+
+class TaxLot(SQLModel, table=True):
     """
     Tracks a specific purchase of an asset for tax purposes.
     Essential for Czech 'Time Test' (3 years).
     """
-    ticker: str
-    date_acquired: date
-    quantity: Decimal
-    acquisition_price: Decimal
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    ticker: str = Field(index=True)
+    date_acquired: date = Field(index=True)
+
+    quantity: Decimal = Field(sa_type=Numeric(20, 6))
+    acquisition_price: Decimal = Field(sa_type=Numeric(20, 4))
     currency: str
-    owner: UUID = Field(default_factory=lambda: UUID(st.session_state["user"]["id"]))
+
+    owner: UUID = Field(index=True)
 
     # Status
     date_sold: Optional[date] = None
-    is_tax_exempt: bool = False  # True if held > 3 years (CZ)
-
-
-class TaxOptimizationResult(BaseModel):
-    """
-    Output for the Tax Optimization Engine.
-    """
-    ticker: str
-    sellable_tax_free_qty: Decimal
-    potential_tax_liability: Decimal
-    recommendation: str  # e.g., "Wait 2 months to sell for tax exemption"
+    is_tax_exempt: bool = Field(default=False)

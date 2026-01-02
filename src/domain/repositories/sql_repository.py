@@ -7,6 +7,7 @@ from src.core.database import engine
 
 # Models
 from src.domain.models.MAsset import Asset
+from src.domain.models.MTax import TaxLot
 from src.domain.models.MTransaction import Transaction
 from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
 from src.domain.models.MLiability import Liability
@@ -118,4 +119,24 @@ class SqlPortfolioRepository(PortfolioRepository):
             uid = events[0].owner
             session.exec(delete(InvestmentEvent).where(InvestmentEvent.owner == uid))
             session.add_all(events)
+            session.commit()
+
+# --- TAX LOT REPO ---
+class SqlTaxLotRepository:
+    def get_open_lots(self, user_id: UUID, ticker: str = None) -> List[TaxLot]:
+        with Session(engine) as session:
+            query = select(TaxLot).where(TaxLot.owner == user_id).where(TaxLot.date_sold == None)
+            if ticker:
+                query = query.where(TaxLot.ticker == ticker)
+            return list(session.exec(query).all())
+
+    def save(self, lot: TaxLot) -> None:
+        with Session(engine) as session:
+            session.merge(lot)
+            session.commit()
+
+    def save_bulk(self, lots: List[TaxLot]) -> None:
+        with Session(engine) as session:
+            for lot in lots:
+                session.add(lot)
             session.commit()
