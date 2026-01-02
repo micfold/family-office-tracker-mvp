@@ -1,26 +1,36 @@
-from typing import List, Dict, Optional, Tuple
+# src/application/portfolio_service.py
+from typing import List, Tuple
 from uuid import UUID
 from decimal import Decimal
 import pandas as pd
 import streamlit as st
 
+# Updated Import: Added parse_portfolio_history
+from src.core.parsers import parse_portfolio_snapshot, parse_portfolio_history
 from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent, PortfolioMetrics
 from src.domain.repositories.portfolio_repository import PortfolioRepository
 
-
 def _get_user_id() -> UUID:
     return UUID(st.session_state["user"]["id"])
-
 
 class PortfolioService:
     def __init__(self, repo: PortfolioRepository):
         self.repo = repo
 
     def process_files(self, snap_file=None, hist_file=None):
+        uid = _get_user_id()
+
+        # 1. Snapshot -> Parse -> Save to DB
         if snap_file:
-            self.repo.save_snapshot_file(snap_file)
+            positions = parse_portfolio_snapshot(snap_file, uid)
+            if positions:
+                self.repo.save_positions(positions)
+
+        # 2. History -> Parse -> Save to DB
         if hist_file:
-            self.repo.save_history_file(hist_file)
+            events = parse_portfolio_history(hist_file, uid)
+            if events:
+                self.repo.save_events(events)
 
     def get_portfolio_overview(self) -> Tuple[List[InvestmentPosition], PortfolioMetrics]:
         uid = _get_user_id()
@@ -34,7 +44,7 @@ class PortfolioService:
 
         # 2. Aggregates from History
         realized_divs = Decimal(0)
-        invested_cap_hist = Decimal(0)  # Calculated from buy/sell flows if snapshot cost is missing
+        invested_cap_hist = Decimal(0)
 
         # Simple History Sums
         for evt in history:
@@ -44,11 +54,9 @@ class PortfolioService:
             elif 'BUY' in et or 'DEPOSIT' in et:
                 invested_cap_hist += evt.total_amount
             elif 'SELL' in et or 'WITHDRAW' in et:
-                # Simplified: assuming total_amount is proceeds
-                # Ideally we need match logic, but for MVP:
                 invested_cap_hist -= evt.total_amount
 
-                # 3. Strategy: Prefer Snapshot Cost, Fallback to History Flow
+        # 3. Strategy: Prefer Snapshot Cost, Fallback to History Flow
         final_cost = total_cost_snap if total_cost_snap > 0 else invested_cap_hist
         if final_cost < 0: final_cost = Decimal(0)
 
@@ -69,11 +77,8 @@ class PortfolioService:
         history = self.repo.get_history(_get_user_id())
         if not history: return pd.DataFrame()
 
-        # Convert to DF for easier time-series manipulation
         data = []
         cumulative = Decimal(0)
-
-        # Sort by date
         sorted_hist = sorted(history, key=lambda x: x.date)
 
         for evt in sorted_hist:
@@ -81,17 +86,12 @@ class PortfolioService:
             if 'BUY' in et:
                 cumulative += evt.total_amount
             elif 'SELL' in et:
-                # Heuristic: subtract proceeds from invested capital (simplified)
-                # A real CFO tool would subtract only the COST BASIS of the sold portion.
-                # For MVP legacy parity:
                 cumulative -= evt.total_amount
-
             if cumulative < 0: cumulative = Decimal(0)
 
             data.append({"Date": evt.date, "Invested Capital": float(cumulative)})
 
         if not data: return pd.DataFrame()
-
         return pd.DataFrame(data).drop_duplicates('Date', keep='last')
 
     def get_dividend_history(self) -> pd.DataFrame:

@@ -1,11 +1,21 @@
+# src/core/parsers.py
 import zipfile
-import pandas as pd
 import io
 import re
-from typing import Generator, Tuple, Optional
+import pandas as pd
+from typing import Generator, Tuple, Optional, List
+from decimal import Decimal
 
-# Bank Configuration Strategy
-# In a real app, this might be loaded from a config file
+from src.domain.enums import Currency
+from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
+
+
+# --- CONSTANTS ---
+# MVP FX Strategy: Static rates for normalization to base currency (CZK)
+# In production, this should be a service call or DB lookup.
+FX_RATES = {'USD': 23.5, 'EUR': 25.2, 'GBP': 29.5, 'CZK': 1.0}
+
+# --- 1. BANK PARSING CONFIG (Existing) ---
 BANK_CONFIGS = {
     'CS': {
         'trigger': 'Own account name',
@@ -25,8 +35,31 @@ BANK_CONFIGS = {
     },
 }
 
+# --- 2. NUMERIC HELPERS ---
+
+def _clean_numeric_portfolio(val) -> Decimal:
+    """Robust cleaner for portfolio CSV numbers (supports EU/US formats mixed)."""
+    if pd.isna(val): return Decimal(0)
+    s = re.sub(r'[^\d.,-]', '', str(val))
+    if not s: return Decimal(0)
+
+    # Heuristic: Determine if comma is decimal or thousands separator
+    if ',' in s and '.' in s:
+        if s.find('.') > s.find(','):
+            s = s.replace(',', '') # 1,000.00 -> 1000.00
+        else:
+            s = s.replace('.', '').replace(',', '.') # 1.000,00 -> 1000.00
+    elif ',' in s:
+        # Assume 100,00 is 100.00 (EU decimal) if no dots are present
+        s = s.replace(',', '.')
+
+    try:
+        return Decimal(s)
+    except:
+        return Decimal(0)
 
 def clean_currency(value):
+    """Cleaner for Bank CSVs (legacy helper)."""
     if pd.isna(value): return 0.0
     val_str = str(value).strip().replace('\xa0', '').replace(' ', '')
     if ',' in val_str and '.' in val_str:
@@ -41,6 +74,108 @@ def clean_currency(value):
             val_str = val_str.replace(',', '')
     return pd.to_numeric(val_str, errors='coerce')
 
+
+# --- 3. PORTFOLIO PARSERS (New) ---
+
+def parse_portfolio_snapshot(file_obj, user_id) -> List[InvestmentPosition]:
+    """Parses a snapshot CSV into InvestmentPosition objects."""
+    try:
+        file_obj.seek(0)
+        df = pd.read_csv(file_obj)
+        positions = []
+
+        # Column Mapping (Support for Snowball / Trading 212 exports)
+        col_map = {
+            'ticker': ['Symbol', 'Ticker'],
+            'name': ['Name', 'Holding'],
+            'qty': ['Quantity', 'Shares'],
+            'price': ['Price', 'Current price'],
+            'value': ['Value', 'Current value', 'Amount'],
+            'cost': ['Cost basis', 'Total cost'],
+            'sector': ['Sector']
+        }
+
+        def get_val(row, keys):
+            for k in keys:
+                if k in row: return row[k]
+            return None
+
+        for _, row in df.iterrows():
+            qty = _clean_numeric_portfolio(get_val(row, col_map['qty']))
+            price = _clean_numeric_portfolio(get_val(row, col_map['price']))
+            val = _clean_numeric_portfolio(get_val(row, col_map['value']))
+            cost = _clean_numeric_portfolio(get_val(row, col_map['cost']))
+
+            # Fallback calculation if Value is missing but Qty/Price exist
+            if val == 0 and price > 0 and qty > 0:
+                val = price * qty
+
+            div_yield = _clean_numeric_portfolio(row.get('Dividend yield', 0))
+
+            pos = InvestmentPosition(
+                ticker=str(get_val(row, col_map['ticker']) or "UNK"),
+                name=str(get_val(row, col_map['name']) or "Unknown"),
+                quantity=qty,
+                current_price=price,
+                cost_basis=cost,
+                market_value=val,
+                gain_loss=val - cost,
+                dividend_yield_projected=div_yield,
+                projected_annual_income=val * (div_yield / Decimal(100)) if div_yield else 0,
+                sector=str(get_val(row, col_map['sector']) or "Other"),
+                owner=user_id
+            )
+            positions.append(pos)
+        return positions
+    except Exception as e:
+        print(f"Error parsing snapshot: {e}")
+        return []
+
+
+def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
+    """Parses a history/transaction log CSV into InvestmentEvent objects."""
+    try:
+        file_obj.seek(0)
+        df = pd.read_csv(file_obj)
+        events = []
+
+        for _, row in df.iterrows():
+            # 1. FX Conversion Logic
+            curr = str(row.get('Currency', 'CZK')).upper()
+            rate = Decimal(FX_RATES.get(curr, 1.0))
+
+            # 2. Extract Data
+            raw_amt = _clean_numeric_portfolio(row.get('Amount') or row.get('Total', 0))
+
+            # Normalize to CZK for the 'total_amount' field
+            amt_czk = raw_amt * rate
+
+            # 3. Create Event
+            evt = InvestmentEvent(
+                date=pd.to_datetime(row.get('Date')),
+                ticker=str(row.get('Symbol') or row.get('Ticker', 'CASH')),
+                event_type=str(row.get('Event') or row.get('Action', 'UNK')),
+
+                # Optional details
+                quantity=_clean_numeric_portfolio(row.get('Quantity')),
+                price_per_share=_clean_numeric_portfolio(row.get('Price')),
+
+                # Standardized Money
+                total_amount=amt_czk,
+                currency=Currency.CZK,
+
+                # Fee could be added here if present in CSV
+                owner=user_id
+            )
+            events.append(evt)
+
+        return events
+    except Exception as e:
+        print(f"Error parsing history: {e}")
+        return []
+
+
+# --- 4. BANK PARSERS (Existing) ---
 
 def parse_bank_content(content: str, filename: str) -> Optional[pd.DataFrame]:
     sep = ';' if ';' in content.split('\n')[0] else ','
