@@ -44,24 +44,31 @@ def _on_suggestion_select(key_prefix: str, api_key: str):
     selected_key = f"{key_prefix}_selected"
     query_key = f"{key_prefix}_query"
     
-    selected_idx = st.session_state.get(select_key, 0)
+    selected_desc = st.session_state.get(select_key, "")
     suggestions = st.session_state.get(suggestions_key, [])
     
-    if selected_idx > 0 and suggestions:
-        selected = suggestions[selected_idx - 1]
-        logger.info(f"User selected: {selected['description']}")
+    # Check if a valid selection was made (not the placeholder)
+    if selected_desc and selected_desc != "Select an address...":
+        # Find the selected suggestion by description
+        selected = next(
+            (s for s in suggestions if s['description'] == selected_desc),
+            None
+        )
         
-        # Fetch place details
-        details = get_place_details(selected['place_id'], api_key)
-        
-        if details:
-            st.session_state[address_key] = details['address']
-            st.session_state[lat_key] = details['latitude']
-            st.session_state[lng_key] = details['longitude']
-            st.session_state[query_key] = details['address']
-            st.session_state[selected_key] = True
-            st.session_state[suggestions_key] = []
-            logger.info(f"Location details saved: {details['address']}")
+        if selected:
+            logger.info(f"User selected: {selected_desc}")
+            
+            # Fetch place details
+            details = get_place_details(selected['place_id'], api_key)
+            
+            if details:
+                st.session_state[address_key] = details['address']
+                st.session_state[lat_key] = details['latitude']
+                st.session_state[lng_key] = details['longitude']
+                st.session_state[query_key] = details['address']
+                st.session_state[selected_key] = True
+                st.session_state[suggestions_key] = []
+                logger.info(f"Location details saved: {details['address']}")
 
 
 def render_address_input_with_autocomplete(
@@ -130,10 +137,9 @@ def render_address_input_with_autocomplete(
     if suggestions and not st.session_state.get(selected_key, False):
         suggestion_options = ["Select an address..."] + [s['description'] for s in suggestions]
         
-        selected = st.selectbox(
+        st.selectbox(
             "Select from suggestions:",
-            options=range(len(suggestion_options)),
-            format_func=lambda x: suggestion_options[x],
+            options=suggestion_options,
             key=f"{key_prefix}_select",
             on_change=_on_suggestion_select,
             args=(key_prefix, api_key)

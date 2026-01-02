@@ -7,6 +7,12 @@ import streamlit as st
 from typing import Optional, Dict, List, Tuple
 from decimal import Decimal
 
+try:
+    import googlemaps
+    GOOGLEMAPS_AVAILABLE = True
+except ImportError:
+    GOOGLEMAPS_AVAILABLE = False
+
 # Get logger for this module
 logger = logging.getLogger(__name__)
 
@@ -46,8 +52,11 @@ def get_address_suggestions(query: str, api_key: str) -> List[Dict[str, str]]:
         logger.debug(f"Query too short: '{query}'")
         return []
     
+    if not GOOGLEMAPS_AVAILABLE:
+        logger.error("googlemaps library not installed. Run: pip install googlemaps")
+        return []
+    
     try:
-        import googlemaps
         logger.debug(f"Fetching address suggestions for query: '{query}'")
         
         gmaps = googlemaps.Client(key=api_key)
@@ -67,9 +76,6 @@ def get_address_suggestions(query: str, api_key: str) -> List[Dict[str, str]]:
         logger.info(f"Found {len(suggestions)} address suggestions for query: '{query}'")
         return suggestions
         
-    except ImportError:
-        logger.error("googlemaps library not installed. Run: pip install googlemaps")
-        return []
     except Exception as e:
         logger.error(f"Error fetching address suggestions: {e}", exc_info=True)
         return []
@@ -86,8 +92,11 @@ def get_place_details(place_id: str, api_key: str) -> Optional[Dict]:
     Returns:
         Dictionary containing address, latitude, and longitude
     """
+    if not GOOGLEMAPS_AVAILABLE:
+        logger.error("googlemaps library not installed. Run: pip install googlemaps")
+        return None
+    
     try:
-        import googlemaps
         logger.debug(f"Fetching place details for place_id: {place_id}")
         
         gmaps = googlemaps.Client(key=api_key)
@@ -109,9 +118,6 @@ def get_place_details(place_id: str, api_key: str) -> Optional[Dict]:
             logger.warning(f"Place details request failed with status: {result.get('status')}")
             return None
             
-    except ImportError:
-        logger.error("googlemaps library not installed. Run: pip install googlemaps")
-        return None
     except Exception as e:
         logger.error(f"Error fetching place details: {e}", exc_info=True)
         return None
