@@ -4,7 +4,7 @@ Address autocomplete component with Google Maps Places API integration.
 """
 import streamlit as st
 import logging
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 from decimal import Decimal
 
 from src.core.maps_helper import (
@@ -15,6 +15,53 @@ from src.core.maps_helper import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _on_query_change(key_prefix: str, api_key: str):
+    """Callback for when query text changes - fetch suggestions."""
+    query_key = f"{key_prefix}_query"
+    suggestions_key = f"{key_prefix}_suggestions"
+    selected_key = f"{key_prefix}_selected"
+    
+    query = st.session_state.get(query_key, "")
+    st.session_state[selected_key] = False
+    
+    if query and len(query) >= 3:
+        logger.debug(f"Query changed to: '{query}', fetching suggestions...")
+        suggestions = get_address_suggestions(query, api_key)
+        st.session_state[suggestions_key] = suggestions
+    else:
+        st.session_state[suggestions_key] = []
+
+
+def _on_suggestion_select(key_prefix: str, api_key: str):
+    """Callback for when a suggestion is selected."""
+    select_key = f"{key_prefix}_select"
+    suggestions_key = f"{key_prefix}_suggestions"
+    address_key = f"{key_prefix}_address"
+    lat_key = f"{key_prefix}_lat"
+    lng_key = f"{key_prefix}_lng"
+    selected_key = f"{key_prefix}_selected"
+    query_key = f"{key_prefix}_query"
+    
+    selected_idx = st.session_state.get(select_key, 0)
+    suggestions = st.session_state.get(suggestions_key, [])
+    
+    if selected_idx > 0 and suggestions:
+        selected = suggestions[selected_idx - 1]
+        logger.info(f"User selected: {selected['description']}")
+        
+        # Fetch place details
+        details = get_place_details(selected['place_id'], api_key)
+        
+        if details:
+            st.session_state[address_key] = details['address']
+            st.session_state[lat_key] = details['latitude']
+            st.session_state[lng_key] = details['longitude']
+            st.session_state[query_key] = details['address']
+            st.session_state[selected_key] = True
+            st.session_state[suggestions_key] = []
+            logger.info(f"Location details saved: {details['address']}")
 
 
 def render_address_input_with_autocomplete(
@@ -43,6 +90,7 @@ def render_address_input_with_autocomplete(
     lng_key = f"{key_prefix}_lng"
     query_key = f"{key_prefix}_query"
     selected_key = f"{key_prefix}_selected"
+    suggestions_key = f"{key_prefix}_suggestions"
     
     if address_key not in st.session_state:
         st.session_state[address_key] = default_value
@@ -54,6 +102,8 @@ def render_address_input_with_autocomplete(
         st.session_state[query_key] = default_value
     if selected_key not in st.session_state:
         st.session_state[selected_key] = False
+    if suggestions_key not in st.session_state:
+        st.session_state[suggestions_key] = []
     
     # Get API key
     api_key = get_google_maps_api_key()
@@ -64,71 +114,34 @@ def render_address_input_with_autocomplete(
         logger.warning("Google Maps API key not available, using fallback text input")
         return address, None, None
     
-    # Address input with real-time suggestions
+    # Address input with real-time suggestions using on_change
     query = st.text_input(
         label,
         value=st.session_state[query_key],
-        key=f"{key_prefix}_input",
+        key=query_key,
         help="Start typing to see address suggestions",
-        placeholder="Start typing an address..."
+        placeholder="Start typing an address...",
+        on_change=_on_query_change,
+        args=(key_prefix, api_key)
     )
     
-    # Update query in session state
-    if query != st.session_state[query_key]:
-        st.session_state[query_key] = query
-        st.session_state[selected_key] = False
-        logger.debug(f"Query updated to: '{query}'")
+    # Show suggestions if available
+    suggestions = st.session_state.get(suggestions_key, [])
+    if suggestions and not st.session_state.get(selected_key, False):
+        suggestion_options = ["Select an address..."] + [s['description'] for s in suggestions]
+        
+        selected = st.selectbox(
+            "Select from suggestions:",
+            options=range(len(suggestion_options)),
+            format_func=lambda x: suggestion_options[x],
+            key=f"{key_prefix}_select",
+            on_change=_on_suggestion_select,
+            args=(key_prefix, api_key)
+        )
     
-    # Fetch suggestions when query changes and has enough characters
-    if query and len(query) >= 3 and not st.session_state[selected_key]:
-        try:
-            suggestions = get_address_suggestions(query, api_key)
-            
-            if suggestions:
-                logger.debug(f"Displaying {len(suggestions)} suggestions")
-                
-                # Display suggestions as selectbox
-                suggestion_options = ["Select an address..."] + [s['description'] for s in suggestions]
-                
-                selected_option = st.selectbox(
-                    "Select from suggestions:",
-                    options=suggestion_options,
-                    key=f"{key_prefix}_selectbox"
-                )
-                
-                # When user selects an address
-                if selected_option != "Select an address...":
-                    # Find the selected suggestion
-                    selected_suggestion = next(
-                        (s for s in suggestions if s['description'] == selected_option),
-                        None
-                    )
-                    
-                    if selected_suggestion:
-                        logger.info(f"User selected address: {selected_option}")
-                        
-                        # Fetch place details
-                        with st.spinner("Loading location details..."):
-                            details = get_place_details(selected_suggestion['place_id'], api_key)
-                        
-                        if details:
-                            # Update session state with selected address
-                            st.session_state[address_key] = details['address']
-                            st.session_state[lat_key] = details['latitude']
-                            st.session_state[lng_key] = details['longitude']
-                            st.session_state[query_key] = details['address']
-                            st.session_state[selected_key] = True
-                            
-                            logger.info(f"Address details saved: {details['address']}")
-                            st.success(f"✅ Address selected: {details['address']}")
-                            st.rerun()
-            else:
-                if len(query) >= 3:
-                    st.info("No address suggestions found. Try a different search term.")
-                    logger.debug(f"No suggestions found for query: '{query}'")
-        except Exception as e:
-            st.error(f"Error fetching address suggestions: {str(e)}")
-            logger.error(f"Error in address autocomplete: {e}", exc_info=True)
+    # Show success message when address is selected
+    if st.session_state.get(selected_key, False) and st.session_state.get(address_key):
+        st.success(f"✅ Address confirmed: {st.session_state[address_key]}")
     
     # Display map if coordinates are available
     if st.session_state[lat_key] and st.session_state[lng_key]:
@@ -186,3 +199,4 @@ def display_location_map(latitude: Decimal, longitude: Decimal, width: int = 600
             
     except Exception as e:
         logger.error(f"Error displaying location map: {e}", exc_info=True)
+
