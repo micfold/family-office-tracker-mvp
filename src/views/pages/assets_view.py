@@ -76,8 +76,6 @@ def _render_add_asset_form(service, category):
 
         # Conditional Fields
         if category == AssetCategory.REAL_ESTATE:
-            from src.views.components.address_autocomplete import render_address_input_with_autocomplete
-            
             st.markdown("---")
             st.markdown("**📍 Property Location**")
             

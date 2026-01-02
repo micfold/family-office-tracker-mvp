@@ -2,7 +2,10 @@
 import streamlit as st
 from decimal import Decimal
 from src.domain.enums import AssetCategory
-from src.views.components.address_autocomplete import display_location_map
+from src.views.components.address_autocomplete import (
+    display_location_map,
+    render_address_input_with_autocomplete
+)
 
 
 def render_asset_card(asset, on_update, on_delete, icon: str):
@@ -57,7 +60,6 @@ def render_asset_card(asset, on_update, on_delete, icon: str):
 
 def _render_edit_form(asset, on_update, on_delete):
     """Render edit form outside of main card to support address autocomplete"""
-    from src.views.components.address_autocomplete import render_address_input_with_autocomplete
     
     # For real estate with address autocomplete (outside form)
     if asset.category == AssetCategory.REAL_ESTATE:

@@ -7,8 +7,7 @@ import streamlit as st
 from typing import Optional, Dict, List, Tuple
 from decimal import Decimal
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+# Get logger for this module
 logger = logging.getLogger(__name__)
 
 
