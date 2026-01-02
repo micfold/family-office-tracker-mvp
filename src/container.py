@@ -18,10 +18,10 @@ from src.application.portfolio_service import PortfolioService
 from src.application.summary_service import SummaryService
 from src.application.auth_service import AuthService
 from src.application.liability_service import LiabilityService
-
-# --- NEW IMPORTS ---
 from src.application.rule_service import RuleService
 from src.application.ingestion_service import IngestionService
+
+# ViewModels
 from src.views.models.portfolio_vm import PortfolioViewModel
 
 
@@ -38,21 +38,22 @@ def get_container():
 
     # 2. Base Services
     auth_service = AuthService()
-    rule_service = RuleService()  # New
+    rule_service = RuleService()
 
-    # 3. Ingestion Service (Depends on RuleService)
-    ingestion_service = IngestionService(rule_service)
-
-    # 4. Domain Services
+    # 3. Domain Services
+    # CRITICAL FIX: Instantiate AssetService EARLY so we can pass it to Ingestion
     asset_service = AssetService(asset_repo)
 
-    # Ledger Service NOW depends on IngestionService
+    # 4. Ingestion Service (Now depends on RuleService AND AssetService)
+    ingestion_service = IngestionService(rule_service, asset_service)
+
+    # 5. Ledger Service (Depends on IngestionService)
     ledger_service = LedgerService(ledger_repo, ingestion_service)
 
     portfolio_service = PortfolioService(portfolio_repo)
     liability_service = LiabilityService(liability_repo)
 
-    # 5. Summary (Aggregator)
+    # 6. Summary (Aggregator)
     summary_service = SummaryService(
         asset_service,
         ledger_service,
@@ -60,7 +61,7 @@ def get_container():
         liability_service
     )
 
-    # 6. ViewModels
+    # 7. ViewModels
     portfolio_vm = PortfolioViewModel(portfolio_service)
 
     return {
