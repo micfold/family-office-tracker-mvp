@@ -1,4 +1,5 @@
 # config.py
+from src.application.auth_service import DATA_ROOT
 from src.domain.enums import TransactionType, ExpenseCategory, IncomeCategory, TransferCategory, InvestmentCategory
 
 # Default Filenames
@@ -64,3 +65,6 @@ UI_CATEGORIES = {
     TransactionType.INVESTMENT.value: [e.value for e in InvestmentCategory],
     TransactionType.TRANSFER.value: [e.value for e in TransferCategory]
 }
+
+DB_NAME = "cfo_tracker.db"
+DB_PATH = f"sqlite:///{DATA_ROOT}/{DB_NAME}"

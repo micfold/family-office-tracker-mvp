@@ -208,7 +208,7 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
 
         return events
     except Exception as e:
-        logging.log(f"Error parsing history: {e}")
+        logging.error(f"Failed to parse investment history: {e}")
         return []
 
 # --- 4. BANK PARSERS (Existing) ---
@@ -269,3 +269,63 @@ def _decode_and_parse(filename, raw_bytes, encodings):
         return filename, df, None
     except Exception as e:
         return filename, None, str(e)
+
+def parse_investment_history(file_obj, user_id) -> List[InvestmentEvent]:
+    try:
+        df = _detect_csv_df(file_obj)
+        events = []
+
+        # Map Columns Robustly
+        col_map = {
+            'date': ['Date', 'Time', 'Datum'],
+            'ticker': ['Symbol', 'Ticker', 'Instrument', 'Asset'],
+            'event': ['Type', 'Event', 'Action', 'Transaction'],
+            'amount': ['Amount', 'Total', 'Value', 'Net Amount', 'Cost'],
+            'qty': ['Quantity', 'Shares', 'Qty'],
+            'price': ['Price', 'Price per share', 'Quote'],
+            'currency': ['Currency', 'Curr', 'Měna']
+        }
+
+        def get_val(row, keys):
+            for k in keys:
+                if k in row.index: return row[k]
+            return None
+
+        for _, row in df.iterrows():
+            # Extract Data
+            curr = str(get_val(row, col_map['currency']) or 'CZK').upper()
+            rate = Decimal(FX_RATES.get(curr, 1.0))
+
+            raw_amt = _clean_numeric_portfolio(get_val(row, col_map['amount']))
+            # If amount is missing, try calculating it
+            raw_qty = _clean_numeric_portfolio(get_val(row, col_map['qty']))
+            raw_price = _clean_numeric_portfolio(get_val(row, col_map['price']))
+
+            if raw_amt == 0 and raw_qty > 0 and raw_price > 0:
+                raw_amt = raw_qty * raw_price
+
+            amt_czk = raw_amt * rate
+
+            # Parse Date
+            raw_date = get_val(row, col_map['date'])
+            try:
+                dt = pd.to_datetime(raw_date, dayfirst=True)
+            except (TypeError, ValueError):
+                dt = pd.to_datetime(raw_date)
+
+            evt = InvestmentEvent(
+                date=dt,
+                ticker=str(get_val(row, col_map['ticker']) or 'CASH'),
+                event_type=str(get_val(row, col_map['event']) or 'UNK'),
+                quantity=raw_qty,
+                price_per_share=raw_price,
+                total_amount=amt_czk,
+                currency=Currency.CZK,
+                owner=user_id
+            )
+            events.append(evt)
+
+        return events
+    except Exception as e:
+        logging.error(f"Failed to parse investment history: {e}")
+        return []

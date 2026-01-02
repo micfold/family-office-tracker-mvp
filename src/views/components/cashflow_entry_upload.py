@@ -39,11 +39,14 @@ def render_entry_upload_tab(service):
         files = st.file_uploader("Bank CSVs/ZIPs", accept_multiple_files=True)
         if files and st.button("Process Files"):
             with st.spinner("Processing..."):
-                count, errors = service.process_uploads(files)
+                count, errors, duplicates = service.process_uploads(files)
 
                 # Show Success
                 if count > 0:
-                    st.success(f"Processed {count} transactions.")
+                    st.success(f"Processed {count} new transactions.")
+
+                if duplicates > 0:
+                    st.warning(f"Skipped {duplicates} duplicate transactions.")
 
                 # Show Errors
                 if errors:
@@ -52,4 +55,3 @@ def render_entry_upload_tab(service):
 
                 if count > 0:
                     st.rerun()
-

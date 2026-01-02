@@ -6,12 +6,15 @@ from src.views.components.kpi_cards import render_executive_summary_cards, rende
 def render_view():
     st.title("📊 Executive Dashboard")
 
-    # 1. Get Services from Container
-    container = get_container()
-    summary_svc = container['summary']
+    # Show skeleton loader while fetching data
+    with st.spinner("Loading..."):
 
-    # 2. Get Logic (One line!)
-    data = summary_svc.get_executive_summary()
+        # 1. Get Services from Container
+        container = get_container()
+        summary_svc = container['summary']
+
+        # 2. Get Logic (One line!)
+        data = summary_svc.get_executive_summary()
 
     # 3. Render
     render_executive_summary_cards(data)

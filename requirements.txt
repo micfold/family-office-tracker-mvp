@@ -1,12 +1,12 @@
 # requirements.txt
-streamlit~=1.37.0
-pandas~=2.2.0
-plotly~=5.18.0
+streamlit
+pandas
+plotly
 openpyxl
 xlsxwriter
-pydantic~=2.6.0
-sqlmodel~=0.0.16
-SQLAlchemy~=2.0.45
+pydantic
+sqlmodel
+SQLAlchemy
 chromadb
 sentence-transformers
 googlemaps~=4.10.0

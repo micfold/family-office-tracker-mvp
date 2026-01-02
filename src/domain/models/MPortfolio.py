@@ -10,6 +10,7 @@ from src.domain.enums import Currency
 
 class InvestmentPosition(SQLModel, table=True):
     """Snapshot of current holdings."""
+    __table_args__ = {'extend_existing': True}
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     ticker: str = Field(index=True)
     name: str
@@ -31,6 +32,7 @@ class InvestmentPosition(SQLModel, table=True):
 
 class InvestmentEvent(SQLModel, table=True):
     """History log (Buy/Sell/Div)."""
+    __table_args__ = {'extend_existing': True}
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     date: datetime = Field(index=True)
     ticker: str = Field(index=True)

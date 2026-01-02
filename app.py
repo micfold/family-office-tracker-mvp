@@ -1,21 +1,29 @@
 # app.py
 import streamlit as st
+import sys
+from pathlib import Path
+# Add project root to path to allow for absolute imports from `config.py`
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from src.application.auth_service import AuthService
 
 # Import NEW Views
-from src.views.pages import dashboard_view
-from src.views.pages import assets_view
-from src.views.pages import cashflow_view
-from src.views.pages import portfolio_view
+from src.views.pages import (
+    assets_view,
+    dashboard_view,
+    portfolio_view,
+    cashflow_view,
+)
 
 # Page Config
-st.set_page_config(page_title="Family Office HQ", layout="wide", page_icon="🏛️")
+st.set_page_config(page_title="Family Office", layout="wide", page_icon="🏛️")
 
 # Initialize Auth
 auth = AuthService()
 
-# --- 1. LOGIN SCREEN ---
-if not auth.current_user:
+# --- Main App Router ---
+if not st.session_state.get("logged_in"):
+    # --- 1. LOGIN SCREEN ---
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("🏛️ Family Office Tracker")
@@ -28,24 +36,44 @@ if not auth.current_user:
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
-    st.stop()
+else:
+    # --- 2. RENDER THE APP ---
+    user = auth.current_user
+    page = None
 
-# --- 2. SIDEBAR ---
-user = auth.current_user
-with st.sidebar:
-    st.markdown(f"### 👤 {user['username']}")
-    nav = st.selectbox("Control Tower", ["Dashboard", "Assets", "Cashflow", "Portfolio"])  # compact picker
-    st.divider()
-    if st.button("Log Out"):
-        auth.logout()
-        st.rerun()
+    # --- SIDEBAR ---
+    with st.sidebar:
+        st.markdown(f"### 👤 {user['username']}")
+        st.success("Logged in")
 
-# --- 3. ROUTING ---
-if nav == "Dashboard":
-    dashboard_view.render_view()
-elif nav == "Assets":
-    assets_view.render_view()
-elif nav == "Cashflow":
-    cashflow_view.render_view()
-elif nav == "Portfolio":
-    portfolio_view.render_view()
+        # --- TAX REGION SELECTOR ---
+        st.selectbox(
+            "Tax Region",
+            ["Czech Republic", "Other"],
+            index=0,
+            key="tax_region"
+        )
+
+        # --- NAVIGATION ---
+        page = st.radio(
+            "Navigation",
+            ("Dashboard", "Assets", "Portfolio", "Cashflow")
+        )
+
+        st.divider()
+        if st.button("Log Out"):
+            auth.logout()
+            st.rerun()
+
+    # --- MAIN CONTENT AREA ---
+    if page == "Dashboard":
+        dashboard_view.render_view()
+    elif page == "Assets":
+        assets_view.render_view()
+    elif page == "Portfolio":
+        portfolio_view.render_view()
+    elif page == "Cashflow":
+        cashflow_view.render_view()
+    else:
+        # Default to dashboard
+        dashboard_view.render_view()

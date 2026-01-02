@@ -1,62 +1,61 @@
 # src/views/components/liability_cards.py
 import streamlit as st
-from decimal import Decimal
+from src.domain.models.MLiability import Liability
+from src.views.utils import format_currency
+from src.views.utils import calculate_czech_mortgage_deduction
+from src.domain.enums import LiabilityCategory
 
 
-def render_liability_card(liab, on_update, on_delete, icon: str):
+def render_liability_card(liability: Liability, on_update, on_delete, icon):
+    """Renders a card for a single liability with options to update or delete."""
+
+    card_style = """
+        <style>
+            .card {
+                border: 1px solid #e6e6e6;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 10px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+        </style>
     """
-    Renders a 'Smart Card' for a liability with detailed editing.
-    """
-    with st.container(border=True):
-        c1, c2, c3 = st.columns([3, 2, 1])
+    st.markdown(card_style, unsafe_allow_html=True)
 
-        # 1. Clean Summary
-        with c1:
-            st.markdown(f"### 💳 {liab.name}")
-            details = [liab.liability_type.value]
-            if liab.interest_rate:
-                details.append(f"**{liab.interest_rate}% APR**")
-            if liab.monthly_payment_day:
-                details.append(f"Due day: {liab.monthly_payment_day}.")
+    with st.container():
+        st.markdown(f'<div class="card">', unsafe_allow_html=True)
 
-            st.caption(" • ".join(details))
+        c1, c2 = st.columns([3, 1])
 
-        with c2:
-            # Red color for debt
-            st.markdown(f"<h2 style='color: #FF4B4B; margin:0;'>-{liab.amount:,.0f} {liab.currency.value}</h2>",
-                        unsafe_allow_html=True)
-            if liab.repayment_end_date:
-                st.caption(f"End Date: {liab.repayment_end_date}")
+        # --- HEADER ---
+        name = f"{liability.liability_type.value} from {liability.institution}"
+        c1.subheader(f"{icon} {name}")
+        c2.metric("Outstanding", f"{liability.amount:,.0f} {liability.currency.value}")
 
-        # 2. Edit Menu (Popover)
-        with c3:
-            with st.popover("⚙️ Manage", use_container_width=True):
-                st.markdown("#### Update Liability")
-                with st.form(key=f"edit_liab_{liab.id}"):
-                    new_name = st.text_input("Name", value=liab.name)
-                    new_amount = st.number_input("Outstanding Balance", value=float(liab.amount), step=1000.0)
+        # --- EXPANDER FOR DETAILS ---
+        with st.expander("Details"):
+            st.markdown(f"**Interest Rate:** {liability.interest_rate}%")
+            if liability.has_insurance:
+                st.markdown(f"**Insurance Cost:** {liability.insurance_cost or 0:,.0f} {liability.currency.value} / year")
 
-                    c_rate, c_day = st.columns(2)
-                    new_rate = c_rate.number_input("Interest Rate (%)", value=float(liab.interest_rate or 0.0),
-                                                   step=0.1)
-                    new_day = c_day.number_input("Payment Day", min_value=1, max_value=31,
-                                                 value=liab.monthly_payment_day or 15)
+            # --- Mortgage Tax Deduction ---
+            if liability.liability_type == LiabilityCategory.MORTGAGE and liability.start_date and liability.annual_interest_paid:
+                st.markdown("---")
+                st.markdown(f"**Start Date:** {liability.start_date.strftime('%B %Y')}")
+                st.markdown(f"**Annual Interest Paid:** {liability.annual_interest_paid:,.0f} {liability.currency.value}")
 
-                    new_end = st.date_input("End Date", value=liab.repayment_end_date or None)
+                tax_region = st.session_state.get("tax_region", "Other")
+                deduction = calculate_czech_mortgage_deduction(
+                    start_date=liability.start_date,
+                    annual_interest_paid=liability.annual_interest_paid,
+                    tax_region=tax_region
+                )
+                if deduction > 0:
+                    st.success(f"**Tax Deduction:** {format_currency(deduction, liability.currency.value)} {liability.currency.value}", icon="✅")
 
-                    c_save, c_del = st.columns(2)
-                    if c_save.form_submit_button("💾 Update", type="primary"):
-                        on_update(
-                            liab,
-                            name=new_name,
-                            amount=Decimal(new_amount),
-                            interest_rate=Decimal(new_rate),
-                            monthly_payment_day=new_day,
-                            repayment_end_date=new_end
-                        )
-                        st.toast("Liability Updated")
-                        st.rerun()
+            st.markdown("---")
+            if st.button("Delete Liability", key=f"delete_liab_btn_{liability.id}"):
+                on_delete(liability.id)
+                st.rerun()
 
-                    if c_del.form_submit_button("🗑️ Delete"):
-                        on_delete(liab.id)
-                        st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
