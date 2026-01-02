@@ -46,9 +46,19 @@ def render_entry_upload_tab(service):
         files = st.file_uploader("Bank CSVs/ZIPs", accept_multiple_files=True)
         if files and st.button("Process Files"):
             with st.spinner("Processing..."):
-                count, _ = service.process_uploads(files)
-                st.success(f"Processed {count} transactions.")
-                st.rerun()
+                count, errors = service.process_uploads(files)
+
+                # Show Success
+                if count > 0:
+                    st.success(f"Processed {count} transactions.")
+
+                # Show Errors
+                if errors:
+                    for err in errors:
+                        st.error(err)
+
+                if count > 0:
+                    st.rerun()
 
 
 def render_view():
@@ -69,7 +79,9 @@ def render_view():
 
     with tabs[2]:
         if not ledger_df.empty:
-            st.dataframe(ledger_df.sort_values('Date', ascending=False), use_container_width=True)
+            # FIX: Sort by 'date' (lowercase)
+            sort_col = 'date' if 'date' in ledger_df.columns else 'Date'
+            st.dataframe(ledger_df.sort_values(sort_col, ascending=False), use_container_width=True)
         else:
             st.info("No data found.")
 
@@ -77,7 +89,8 @@ def render_view():
         history = service.get_batch_history()
         if not history.empty:
             st.dataframe(history, use_container_width=True)
-            sel = st.selectbox("Select Batch", history['Batch_ID'].unique())
+            batch_col = 'Batch_ID' if 'Batch_ID' in history.columns else 'batch_id'
+            sel = st.selectbox("Select Batch", history[batch_col].unique())
             if st.button("Delete Batch"):
                 service.delete_batch(sel)
                 st.rerun()

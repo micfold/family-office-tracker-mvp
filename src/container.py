@@ -19,32 +19,49 @@ from src.application.summary_service import SummaryService
 from src.application.auth_service import AuthService
 from src.application.liability_service import LiabilityService
 
+# --- NEW IMPORTS ---
+from src.application.rule_service import RuleService
+from src.application.ingestion_service import IngestionService
+from src.views.models.portfolio_vm import PortfolioViewModel
+
 
 @st.cache_resource
 def get_container():
     init_db()
 
-    # Repos
+    # 1. Repos
     asset_repo = SqlAssetRepository()
     ledger_repo = SqlTransactionRepository()
     portfolio_repo = SqlPortfolioRepository()
     liability_repo = SqlLiabilityRepository()
     tax_repo = SqlTaxLotRepository()
 
-    # Services
+    # 2. Base Services
     auth_service = AuthService()
+    rule_service = RuleService()  # New
+
+    # 3. Ingestion Service (Depends on RuleService)
+    ingestion_service = IngestionService(rule_service)
+
+    # 4. Domain Services
     asset_service = AssetService(asset_repo)
-    ledger_service = LedgerService(ledger_repo)
+
+    # Ledger Service NOW depends on IngestionService
+    ledger_service = LedgerService(ledger_repo, ingestion_service)
+
     portfolio_service = PortfolioService(portfolio_repo)
     liability_service = LiabilityService(liability_repo)
 
-    # Summary depends on all
+    # 5. Summary (Aggregator)
     summary_service = SummaryService(
         asset_service,
         ledger_service,
         portfolio_service,
         liability_service
     )
+
+    # 6. ViewModels
+    portfolio_vm = PortfolioViewModel(portfolio_service)
 
     return {
         "auth": auth_service,
@@ -53,5 +70,7 @@ def get_container():
         "portfolio": portfolio_service,
         "liability": liability_service,
         "summary": summary_service,
-        "tax_repo": tax_repo
+        "rule": rule_service,
+        "ingestion": ingestion_service,
+        "portfolio_vm": portfolio_vm
     }

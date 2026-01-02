@@ -1,77 +1,66 @@
+# src/views/pages/portfolio_view.py
 import streamlit as st
 import plotly.express as px
 from src.container import get_container
 from src.views.components.charts import render_portfolio_allocation, render_invested_capital_curve
 
+
+# Note: We don't import Service or Domain Models anymore!
+
 def render_view():
     st.title("📈 Investment Portfolio")
 
+    # 1. Get ViewModel
     container = get_container()
-    service = container['portfolio']
+    vm = container['portfolio_vm']  # We will add this to container next
 
-    # 1. Uploaders
+    # 2. Uploaders (Action)
     with st.expander("Update Data Sources"):
         c1, c2 = st.columns(2)
-        with c1:
-            st.caption("Holdings (Current Position)")
-            s_file = st.file_uploader("Upload Snapshot CSV", type='csv', key="snap_up")
-        with c2:
-            st.caption("History (Transaction Log)")
-            h_file = st.file_uploader("Upload History CSV", type='csv', key="hist_up")
+        s_file = c1.file_uploader("Upload Snapshot CSV", type='csv', key="snap_up")
+        h_file = c2.file_uploader("Upload History CSV", type='csv', key="hist_up")
 
-        if s_file or h_file:
-            if st.button("Process & Save"):
-                service.process_files(s_file, h_file)
+        if (s_file or h_file) and st.button("Process & Save"):
+            if vm.process_uploads(s_file, h_file):
                 st.success("Data Updated!")
                 st.rerun()
 
-    # 2. Main Logic
-    positions, metrics = service.get_portfolio_overview()
+    # 3. Main Display (Passive)
+    metrics = vm.get_metrics()
 
-    if not positions and metrics.total_invested == 0:
-        st.info("👋 Upload your portfolio exports to see analytics.")
-        return
-
-    # 3. KPI Header
+    # KPI Row
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Portfolio Value", f"{metrics.total_value:,.0f} CZK")
-    m2.metric("Total Profit", f"{metrics.total_profit:,.0f} CZK", delta=f"{metrics.total_profit_pct:.1f}%")
-    m3.metric("Invested Capital", f"{metrics.total_invested:,.0f} CZK")
-    m4.metric("Divs (All Time)", f"{metrics.realized_dividends_all_time:,.0f} CZK")
+    m1.metric("Portfolio Value", metrics.total_value)
+    m2.metric("Total Profit", metrics.total_profit, metrics.total_profit_pct, delta_color=metrics.total_profit_color)
+    m3.metric("Invested Capital", metrics.invested_capital)
+    m4.metric("Divs (All Time)", metrics.dividends_all_time)
 
     st.divider()
 
-    # 4. Visuals (Top Row)
+    # Charts
     c1, c2 = st.columns(2)
     with c1:
-        render_portfolio_allocation(positions)
+        # Note: Chart component might need slight adjustment if it expects raw objects
+        # For now, we pass what the VM provides
+        render_portfolio_allocation(vm.get_allocation_chart_data())
     with c2:
-        curve_df = service.get_invested_capital_curve()
-        render_invested_capital_curve(curve_df)
+        render_invested_capital_curve(vm.get_curve_data())
 
-    # 5. Dividend Intelligence
+    # Dividend Intelligence
     st.subheader("Dividend Intelligence")
     div_cols = st.columns(2)
     with div_cols[0]:
         st.caption("Annual Dividend Income")
-        div_df = service.get_dividend_history()
+        div_df = vm.get_dividend_data()
         if not div_df.empty:
             st.plotly_chart(px.bar(div_df, x='Year', y='Amount'), use_container_width=True)
 
     with div_cols[1]:
-        st.metric("Projected Annual Income", f"{metrics.projected_annual_dividends:,.0f} CZK")
-        st.metric("Yield on Cost", f"{metrics.yield_on_cost:.2f}%")
+        st.metric("Projected Annual Income", metrics.proj_annual_income)
+        st.metric("Yield on Cost", metrics.yield_on_cost)
 
-    # 6. Data Grid
+    # Grid
     st.subheader("Holdings")
-    if positions:
-        # Convert objects to simple dicts for dataframe display
-        grid_data = [{
-            "Ticker": p.ticker,
-            "Name": p.name,
-            "Qty": float(p.quantity),
-            "Value": float(p.market_value),
-            "Profit": float(p.gain_loss),
-            "Yield": float(p.dividend_yield_projected)
-        } for p in positions]
-        st.dataframe(grid_data, use_container_width=True)
+    df = vm.get_holdings_grid()
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)

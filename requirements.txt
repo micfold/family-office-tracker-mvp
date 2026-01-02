@@ -7,3 +7,5 @@ xlsxwriter
 pydantic~=2.6.0
 sqlmodel~=0.0.16
 SQLAlchemy~=2.0.45
+chromadb
+sentence-transformers

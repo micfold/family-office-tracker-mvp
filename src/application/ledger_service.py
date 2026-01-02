@@ -5,11 +5,8 @@ from uuid import UUID
 from datetime import datetime
 
 from src.domain.models.MTransaction import Transaction
-from src.domain.enums import TransactionType, ExpenseCategory, IncomeCategory
 from src.domain.repositories.transaction_repository import TransactionRepository
-from src.core.parsers import process_uploaded_files
-# Using the config for rules mapping, or move to domain
-from config import GLOBAL_RULES, CATEGORY_TYPE_MAP
+from src.application.ingestion_service import IngestionService  # New Dependency
 
 
 def _get_user_id() -> UUID:
@@ -17,8 +14,9 @@ def _get_user_id() -> UUID:
 
 
 class LedgerService:
-    def __init__(self, repo: TransactionRepository):
+    def __init__(self, repo: TransactionRepository, ingestion_service: IngestionService):
         self.repo = repo
+        self.ingestion_svc = ingestion_service
 
     def get_recent_transactions(self) -> pd.DataFrame:
         """Returns DF for the UI Grid."""
@@ -27,60 +25,45 @@ class LedgerService:
     def get_batch_history(self) -> pd.DataFrame:
         """Analytics on uploads."""
         df = self.get_recent_transactions()
-        if df.empty or 'Batch_ID' not in df.columns:
+        # FIX: Use lowercase 'batch_id'
+        if df.empty or 'batch_id' not in df.columns:
             return pd.DataFrame()
 
-        stats = df.groupby('Batch_ID').agg(
-            Upload_Date=('Date', 'max'),
-            Tx_Count=('Amount', 'count'),
-            Total_In=('Amount', lambda x: x[x > 0].sum()),
-            Total_Out=('Amount', lambda x: x[x < 0].sum())
+        stats = df.groupby('batch_id').agg(
+            Upload_Date=('date', 'max'),
+            Tx_Count=('amount', 'count'),
+            Total_In=('amount', lambda x: x[x > 0].sum()),
+            Total_Out=('amount', lambda x: x[x < 0].sum())
         ).reset_index()
-        return stats.sort_values('Upload_Date', ascending=False)
 
-    def process_uploads(self, files) -> Tuple[int, int]:
-        """
-        Orchestrates: Parse -> Categorize -> Save
-        Returns: (processed_count, duplicates_skipped) - logic handled by repo mostly
-        """
+        # Rename for UI niceness (optional, or adjust UI to match)
+        stats.rename(columns={'batch_id': 'Batch_ID'}, inplace=True)
+
+        return stats.sort_values('Upload_Date', ascending=False)
+    def process_uploads(self, files) -> Tuple[int, List[str]]:
+        """Returns (count_processed, list_of_errors)"""
         user_id = _get_user_id()
         batch_id = f"Import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         transactions_to_save = []
+        all_errors = []
 
-        # 1. Parse
-        for filename, df, error in process_uploaded_files(files):
-            if df is not None and not df.empty:
-                # 2. Categorize & Convert to Objects
-                for _, row in df.iterrows():
-                    cat, t_type = self._apply_rules(row['Description'], row['Amount'])
+        for file in files:
+            content = file.getvalue()
+            txs, errors = self.ingestion_svc.process_file(file.name, content, user_id, batch_id)
 
-                    tx = Transaction(
-                        date=row['Date'],
-                        description=row['Description'],
-                        amount=row['Amount'],
-                        currency='CZK',
-                        category=cat,
-                        transaction_type=t_type,
-                        source_account=row.get('Source_Account'),
-                        target_account=row.get('Target_Account'),
-                        batch_id=batch_id,
-                        owner=user_id
-                    )
-                    transactions_to_save.append(tx)
+            if errors:
+                all_errors.extend(errors)
 
-        if not transactions_to_save:
-            return 0, 0
+            transactions_to_save.extend(txs)
 
-        # 3. Save
-        # Note: We rely on Repo deduplication for the "duplicates_skipped" count,
-        # which is harder to calculate with this clean architecture split
-        # without querying first. For MVP, we just save.
-        self.repo.save_bulk(transactions_to_save)
+        if transactions_to_save:
+            self.repo.save_bulk(transactions_to_save)
 
-        return len(transactions_to_save), 0
+        return len(transactions_to_save), all_errors
 
     def add_manual_transaction(self, data: dict):
+        # ... (Keep existing manual logic) ...
         if 'type' in data:
             data['transaction_type'] = data.pop('type')
 
@@ -92,21 +75,3 @@ class LedgerService:
 
     def delete_batch(self, batch_id: str):
         self.repo.delete_batch(batch_id, _get_user_id())
-
-    def _apply_rules(self, description: str, amount: float) -> Tuple[str, str]:
-        """Categorization Engine."""
-        desc_lower = str(description).lower()
-
-        # 1. Pattern Matching
-        for rule in GLOBAL_RULES:
-            if rule['pattern'].lower() in desc_lower:
-                # Direction check
-                direction = rule.get('direction')
-                if direction == 'positive' and amount < 0: continue
-                if direction == 'negative' and amount > 0: continue
-
-                return rule['category'], rule['type']
-
-        # 2. Default
-        t_type = TransactionType.EXPENSE if amount < 0 else TransactionType.INCOME
-        return "Uncategorized", t_type
