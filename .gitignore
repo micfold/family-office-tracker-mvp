@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 .data/
 data/
+*.pyc
+.pytest_cache/
+htmlcov/
+.coverage
