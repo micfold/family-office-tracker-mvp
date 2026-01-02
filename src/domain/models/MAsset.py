@@ -25,9 +25,8 @@ class Asset(SQLModel, table=True):
 
     # Real Estate Fields
     address: Optional[str] = None
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    property_type: Optional[RealEstateType] = None
+    latitude: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 7))
+    longitude: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 7))
     area_m2: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 2))
     annual_cost_projection: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 2))
 

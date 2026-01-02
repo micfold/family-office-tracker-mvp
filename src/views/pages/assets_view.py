@@ -90,110 +90,47 @@ def _render_add_asset_form(service, category):
     """
     Renders a unified form for adding assets, adapting fields based on category.
     """
-    state = _get_state(category.name)
+    with st.form(f"add_{category.name}_form"):
+        c1, c2 = st.columns(2)
+        name = c1.text_input("Name")
+        val = c2.number_input("Value / Amount", step=1000.0)
 
-    c1, c2 = st.columns(2)
-    with c1:
-        state['val'] = render_numeric_input("Value / Amount", key=f"add_{category.name}_val")
-    with c2:
-        state['currency'] = st.selectbox(
-            "Currency",
-            [c.value for c in Currency],
-            format_func=lambda x: f"{get_currency_icon(x)} {x}",
-            key=f"add_asset_currency_{category.name}"
-        )
+        kwargs = {}
 
-    # Conditional Fields
-    if category == AssetCategory.REAL_ESTATE:
-        st.markdown("---")
-        state['property_type'] = st.selectbox("Property Type", options=RealEstateType, format_func=lambda t: t.value)
+        # Conditional Fields
+        if category == AssetCategory.REAL_ESTATE:
+            st.markdown("---")
+            st.markdown("**📍 Property Location**")
+            
+            # Note: We can't use the autocomplete component inside a form
+            # so we'll add a note and use a simpler approach
+            c3, c4 = st.columns(2)
+            kwargs['address'] = c3.text_input(
+                "Address", 
+                help="Enter the full address. After submitting, you can edit to use address autocomplete."
+            )
+            kwargs['area_m2'] = Decimal(c4.number_input("Area (m²)", step=1.0))
 
-        # --- Address Autocomplete ---
-        address_input = st.text_input(
-            "Address",
-            value=state.get('address', ''),
-            key=f"address_input_{category.name}"
-        )
-        state['address'] = address_input
+        elif category == AssetCategory.VEHICLE:
+            st.markdown("---")
+            c3, c4 = st.columns(2)
+            kwargs['brand'] = c3.text_input("Brand")
+            kwargs['model'] = c4.text_input("Model")
+            kwargs['insurance_cost'] = Decimal(st.number_input("Annual Insurance", step=100.0))
 
-        if address_input:
-            suggestions = get_address_suggestions(address_input)
-            if suggestions:
-                selected_suggestion = st.selectbox(
-                    "Select Address",
-                    options=[s['description'] for s in suggestions],
-                    key=f"address_suggestion_{category.name}"
-                )
-                if selected_suggestion:
-                    state['address'] = selected_suggestion
-                    # Fetch and display map
-                    place_id = [s['place_id'] for s in suggestions if s['description'] == selected_suggestion][0]
-                    place_details = get_place_details(place_id)
-                    if place_details and 'geometry' in place_details:
-                        loc = place_details['geometry']['location']
-                        st.map([{'lat': loc['lat'], 'lon': loc['lng']}])
+        elif category == AssetCategory.CASH:
+            st.markdown("---")
+            kwargs['cash_type'] = st.selectbox("Type", [t.value for t in CashCategory])
+            kwargs['bucket_name'] = st.text_input("Envelope / Bucket Name")
+            kwargs['currency'] = st.selectbox("Currency", [c.value for c in Currency])
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            state['city'] = c1.text_input("City", value=state.get('city', ''), key=f"city_field_{category.name}")
-        with c2:
-            state['postal_code'] = c2.text_input("Postal Code", value=state.get('postal_code', ''), key=f"postal_code_field_{category.name}")
-        with c3:
-            state['area_m2'] = c3.number_input("Area (m²)", step=1.0, format="%.2f")
+            c3, c4 = st.columns(2)
+            kwargs['account_number'] = c3.text_input("Account Number")
+            kwargs['bank_code'] = c4.text_input("Bank Code")
 
-        state['annual_cost_projection'] = render_numeric_input("Annual Cost Projection", key=f"add_{category.name}_cost")
-
-    elif category == AssetCategory.VEHICLE:
-        st.markdown("---")
-        c3, c4, c5 = st.columns(3)
-        state['brand'] = c3.text_input("Brand")
-        state['model'] = c4.text_input("Model")
-        state['year_made'] = c5.number_input("Year Made", step=1, format="%d", value=state['year_made'])
-
-        c6, c7, c8 = st.columns(3)
-        state['kilometers_driven'] = c6.number_input("Kilometers at Acquisition", step=100)
-        state['acquisition_date'] = c7.date_input("Acquisition Date")
-        state['color'] = c8.color_picker("Color", value=state['color'])
-
-        state['insurance_cost'] = render_numeric_input("Annual Insurance", key=f"add_{category.name}_insurance")
-
-    elif category == AssetCategory.CASH:
-        st.markdown("---")
-        state['cash_type'] = st.selectbox("Type", options=[ct.value for ct in CashCategory])
-
-        # Correctly check against the string value from the selectbox
-        if state['cash_type'] == CashCategory.SAVINGS_ACCOUNT.value:
-            existing_buckets = list(set(a.bucket_name for a in service.get_user_assets() if a.category == AssetCategory.CASH and a.bucket_name))
-            all_options = ["Create new..."] + existing_buckets
-
-            # Ensure the state's bucket_name is a valid choice, otherwise default
-            current_selection = state.get('bucket_name', "Create new...")
-            if current_selection not in all_options:
-                current_selection = "Create new..."
-
-            bucket_choice = st.selectbox("Envelope / Bucket Name", all_options, index=all_options.index(current_selection))
-
-            if bucket_choice == "Create new...":
-                # Use a different key for the text_input to avoid conflicts
-                new_bucket_name = st.text_input("New Bucket Name", key="new_bucket_name_input")
-                state['bucket_name'] = new_bucket_name
-            else:
-                state['bucket_name'] = bucket_choice
-
-        state['account_identifier'] = st.text_input("Account Number / IBAN", value=state.get('account_identifier', ''))
-
-        # Display the identified bank in real-time
-        if state['account_identifier']:
-            bank_name = identify_bank(state['account_identifier'])
-            if bank_name:
-                st.info(f"**Issuing Bank:** {bank_name}", icon="🏦")
-
-    if st.button("Add Asset", type="primary", key=f"add_asset_btn_{category.name}"):
-        kwargs = {k: v for k, v in state.items() if k not in ['val', 'currency']}
-        service.create_asset(category=category, value=state['val'], currency=state['currency'], **kwargs)
-        # Clear state after submission
-        del st.session_state[f"add_asset_form_{category.name}"]
-        st.rerun()
+        if st.form_submit_button("Add Asset", type="primary"):
+            service.create_asset(name, category, Decimal(val), **kwargs)
+            st.rerun()
 
 
 def _render_add_liability_form(service):

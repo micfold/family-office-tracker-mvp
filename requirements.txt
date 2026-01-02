@@ -9,4 +9,4 @@ sqlmodel
 SQLAlchemy
 chromadb
 sentence-transformers
-psycopg2-binary
+googlemaps~=4.10.0
