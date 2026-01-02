@@ -3,7 +3,6 @@ from typing import List
 from uuid import UUID
 from src.domain.models.MAsset import Asset
 
-
 class BaseRepository(ABC):
     """Generic repository interface."""
     pass

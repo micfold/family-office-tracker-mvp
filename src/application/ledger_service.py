@@ -25,7 +25,6 @@ class LedgerService:
         if df.empty or 'batch_id' not in df.columns:
             return pd.DataFrame()
 
-        # Analytics using lowercase columns (SQLModel standard)
         stats = df.groupby('batch_id').agg(
             Upload_Date=('date', 'max'),
             Tx_Count=('amount', 'count'),
@@ -40,7 +39,7 @@ class LedgerService:
         user_id = _get_user_id()
         batch_id = f"Import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # 1. Fetch Existing Transactions for Deduplication
+        # Fetch Existing Transactions for Deduplication
         # We build a set of signatures: (date, amount, description)
         existing_txs = self.repo.get_all(user_id)
         existing_signatures = {
@@ -51,7 +50,7 @@ class LedgerService:
         all_errors = []
         duplicates_count = 0
 
-        # 2. Process Files
+        # Process Files
         for file in files:
             content = file.getvalue()
             txs, errors = self.ingestion_svc.process_file(file.name, content, user_id, batch_id)
@@ -59,7 +58,7 @@ class LedgerService:
             if errors:
                 all_errors.extend(errors)
 
-            # 3. Deduplicate
+            # Deduplicate
             for tx in txs:
                 sig = (tx.date, tx.amount, tx.description)
                 if sig in existing_signatures:
@@ -69,7 +68,7 @@ class LedgerService:
                     # Add to local signature set to prevent duplicates within the same upload batch
                     existing_signatures.add(sig)
 
-        # 4. Save Logic
+        # Save Logic
         if transactions_to_save:
             self.repo.save_bulk(transactions_to_save)
 

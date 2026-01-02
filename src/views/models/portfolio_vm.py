@@ -1,6 +1,5 @@
 # src/views/models/portfolio_vm.py
 import pandas as pd
-from typing import List, Dict, Any
 from dataclasses import dataclass
 from src.application.portfolio_service import PortfolioService
 

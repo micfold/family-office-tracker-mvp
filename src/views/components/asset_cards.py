@@ -1,7 +1,7 @@
 # src/views/components/asset_cards.py
 import streamlit as st
 from decimal import Decimal
-from src.domain.enums import AssetCategory, CashCategory, Currency
+from src.domain.enums import AssetCategory
 
 
 def render_asset_card(asset, on_update, on_delete, icon: str):
@@ -73,14 +73,14 @@ def render_asset_card(asset, on_update, on_delete, icon: str):
 
                     c_save, c_del = st.columns(2)
                     if c_save.form_submit_button("💾 Save Changes", type="primary"):
-                        # Update core fields
-                        asset.name = new_name
-                        # Update extra fields
-                        for k, v in kwargs.items():
-                            setattr(asset, k, v)
+                        # Collect update payload (do not mutate `asset` directly in the view)
+                        update_payload = {'name': new_name, 'value': Decimal(new_val)}
+                        update_payload.update(kwargs)
 
-                        on_update(asset, Decimal(new_val))
-                        st.toast(f"Updated {asset.name}")
+                        # Call the service-level updater which accepts asset_id and kwargs
+                        on_update(asset.id, new_value=update_payload['value'], **{k: v for k, v in update_payload.items() if k != 'value'})
+
+                        st.toast(f"Updated {new_name}")
                         st.rerun()
 
                     if c_del.form_submit_button("🗑️ Delete Asset"):

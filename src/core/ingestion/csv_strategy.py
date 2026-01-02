@@ -1,4 +1,6 @@
 # src/core/ingestion/csv_strategy.py
+import logging
+
 import pandas as pd
 import io
 from decimal import Decimal
@@ -7,9 +9,18 @@ from .base import IngestionStrategy, NormalizedTransaction
 
 # Configs mapped to your specific bank exports
 BANK_CONFIGS = {
-    'CS': {'trigger': 'Own account name', 'date': 'Processing Date', 'desc': ['Partner Name', 'Note'], 'amt': 'Amount'},
-    'RB': {'trigger': 'Datum provedení', 'date': 'Datum provedení', 'desc': ['Název protiúčtu', 'Zpráva'],
-           'amt': 'Zaúčtovaná částka'},
+    'CS': {
+        'trigger': 'Own account name',
+        'date': 'Processing Date',
+        'desc': ['Partner Name', 'Note'],
+        'amt': 'Amount'
+    },
+    'RB': {
+        'trigger': 'Datum provedení',
+        'date': 'Datum provedení',
+        'desc': ['Název protiúčtu', 'Zpráva'],
+        'amt': 'Zaúčtovaná částka',
+    },
 }
 
 
@@ -80,6 +91,7 @@ class CsvBankStrategy(IngestionStrategy):
         for enc in ['utf-8', 'cp1250', 'windows-1250', 'latin1']:
             try:
                 return content.decode(enc)
-            except:
+            except UnicodeDecodeError as e:
+                logging.log(logging.ERROR, f"UnicodeDecodeError: {str(e)}")
                 continue
         return ""

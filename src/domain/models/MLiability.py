@@ -24,7 +24,7 @@ class Liability(SQLModel, table=True):
     # Specific Liability Fields
     liability_type: LiabilityCategory
     institution: Optional[str] = None
-    interest_rate: Optional[Decimal] = Field(default=None, sa_type=Numeric(5, 2))
+    interest_rate: Optional[Decimal] = Field(default=None, sa_type=Numeric(4, 2))
     monthly_payment_day: Optional[int] = None
     repayment_end_date: Optional[date] = None
 

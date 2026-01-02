@@ -34,7 +34,7 @@ if not auth.current_user:
 user = auth.current_user
 with st.sidebar:
     st.markdown(f"### 👤 {user['username']}")
-    nav = st.radio("Control Tower", ["Dashboard", "Assets", "Cashflow", "Portfolio"])
+    nav = st.selectbox("Control Tower", ["Dashboard", "Assets", "Cashflow", "Portfolio"])  # compact picker
     st.divider()
     if st.button("Log Out"):
         auth.logout()

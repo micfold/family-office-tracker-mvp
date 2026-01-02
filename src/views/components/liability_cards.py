@@ -1,7 +1,6 @@
 # src/views/components/liability_cards.py
 import streamlit as st
 from decimal import Decimal
-from src.domain.enums import AssetCategory, CashCategory, Currency
 
 
 def render_liability_card(liab, on_update, on_delete, icon: str):

@@ -18,6 +18,12 @@ from src.domain.repositories.transaction_repository import TransactionRepository
 from src.domain.repositories.portfolio_repository import PortfolioRepository
 from src.domain.repositories.liability_repository import LiabilityRepository
 
+# Auth service for file operations
+from src.application.auth_service import AuthService
+import logging
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # --- ASSET REPO ---
 class SqlAssetRepository(AssetRepository):
@@ -109,9 +115,28 @@ class SqlPortfolioRepository(PortfolioRepository):
         with Session(engine) as session:
             return list(session.exec(select(InvestmentEvent).where(InvestmentEvent.owner == user_id)).all())
 
-    def save_snapshot_file(self, file_obj) -> None: pass
+    def save_snapshot_file(self, file_obj) -> None:
+        # Persist uploaded snapshot CSV into the current user's data folder
+        try:
+            auth = AuthService()
+            path = auth.get_file_path('portfolio_snapshot.csv')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, 'wb') as f:
+                f.write(file_obj.getbuffer())
+            logger.info('Saved portfolio snapshot to %s', path)
+        except Exception as e:
+            logger.exception('Failed to save snapshot file: %s', e)
 
-    def save_history_file(self, file_obj) -> None: pass
+    def save_history_file(self, file_obj) -> None:
+        try:
+            auth = AuthService()
+            path = auth.get_file_path('portfolio_history.csv')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, 'wb') as f:
+                f.write(file_obj.getbuffer())
+            logger.info('Saved portfolio history to %s', path)
+        except Exception as e:
+            logger.exception('Failed to save history file: %s', e)
 
     def save_positions(self, positions: List[InvestmentPosition]):
         with Session(engine) as session:
@@ -147,3 +172,4 @@ class SqlTaxLotRepository:
             for lot in lots:
                 session.add(lot)
             session.commit()
+

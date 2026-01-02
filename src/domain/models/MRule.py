@@ -1,5 +1,5 @@
 # src/domain/models/MRule.py
-from typing import Optional
+
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field
 from src.domain.enums import TransactionType

@@ -1,7 +1,7 @@
 # src/application/rule_service.py
-from typing import List
+
 from uuid import UUID
-from sqlmodel import Session, select
+from sqlmodel import Session
 from src.core.database import engine
 from src.domain.models.MRule import CategoryRule
 from src.core.vector_store import VectorRuleEngine

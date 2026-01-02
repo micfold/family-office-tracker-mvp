@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from typing import List
 from uuid import UUID
-import pandas as pd  # Allowing DF for complex charts
 from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
 
 

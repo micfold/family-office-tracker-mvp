@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List
 from uuid import UUID
 from decimal import Decimal
 import streamlit as st
@@ -23,9 +23,31 @@ class AssetService:
         uid = _get_current_user_id()
         return self.repo.get_all(uid)
 
-    def update_asset_value(self, asset: Asset, new_value: Decimal) -> None:
-        asset.value = new_value
-        self.repo.save(asset)
+    def update_asset_value(self, asset_id: UUID, new_value: Decimal = None, **kwargs) -> None:
+        """
+        Update an asset by id. The view should pass the asset id and updated fields;
+        the service mutates the domain model and persists it via the repository.
+        """
+        uid = _get_current_user_id()
+        assets = self.repo.get_all(uid)
+        # Find the asset by id
+        target = None
+        for a in assets:
+            if str(a.id) == str(asset_id):
+                target = a
+                break
+        if not target:
+            raise ValueError(f"Asset not found: {asset_id}")
+
+        # Apply updates
+        if new_value is not None:
+            target.value = new_value
+
+        for key, val in kwargs.items():
+            if hasattr(target, key):
+                setattr(target, key, val)
+
+        self.repo.save(target)
 
     def create_asset(self,
                      name: str,

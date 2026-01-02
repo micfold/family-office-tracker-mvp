@@ -7,7 +7,7 @@ import streamlit as st
 
 # Updated Import: Added parse_portfolio_history
 from src.core.parsers import parse_portfolio_snapshot, parse_portfolio_history
-from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent, PortfolioMetrics
+from src.domain.models.MPortfolio import InvestmentPosition, PortfolioMetrics
 from src.domain.repositories.portfolio_repository import PortfolioRepository
 
 def _get_user_id() -> UUID:

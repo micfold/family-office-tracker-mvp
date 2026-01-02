@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List
 from uuid import UUID
-from datetime import date
-import pandas as pd # Pragmatic choice: we allow returning DFs for analytics
+import pandas as pd
 from src.domain.models.MTransaction import Transaction
 
 class TransactionRepository(ABC):

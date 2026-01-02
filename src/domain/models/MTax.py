@@ -5,7 +5,6 @@ from datetime import date
 from decimal import Decimal
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Numeric
-import streamlit as st
 
 
 class TaxLot(SQLModel, table=True):

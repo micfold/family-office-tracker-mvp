@@ -1,4 +1,5 @@
 # src/core/parsers.py
+import logging
 import zipfile
 import io
 import re
@@ -15,7 +16,7 @@ from src.domain.models.MPortfolio import InvestmentPosition, InvestmentEvent
 # In production, this should be a service call or DB lookup.
 FX_RATES = {'USD': 23.5, 'EUR': 25.2, 'GBP': 29.5, 'CZK': 1.0}
 
-# --- 1. BANK PARSING CONFIG (Existing) ---
+# --- BANK PARSING CONFIG ---
 BANK_CONFIGS = {
     'CS': {
         'trigger': 'Own account name',
@@ -35,7 +36,7 @@ BANK_CONFIGS = {
     },
 }
 
-# --- 2. NUMERIC HELPERS ---
+# --- NUMERIC HELPERS ---
 
 def _clean_numeric_portfolio(val) -> Decimal:
     """Robust cleaner for portfolio CSV numbers (supports EU/US formats mixed)."""
@@ -55,7 +56,7 @@ def _clean_numeric_portfolio(val) -> Decimal:
 
     try:
         return Decimal(s)
-    except:
+    except Exception:
         return Decimal(0)
 
 
@@ -93,7 +94,7 @@ def clean_currency(value):
     return pd.to_numeric(val_str, errors='coerce')
 
 
-# --- 3. PORTFOLIO PARSERS (New) ---
+# --- PORTFOLIO PARSERS ---
 
 def parse_portfolio_snapshot(file_obj, user_id) -> List[InvestmentPosition]:
     """Parses a snapshot CSV into InvestmentPosition objects."""
@@ -155,7 +156,7 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
         df = _detect_csv_df(file_obj)
         events = []
 
-        # 1. Map Columns Robustly (Like Snapshot)
+        # Map Columns Robustly
         col_map = {
             'date': ['Date', 'Time', 'Datum'],
             'ticker': ['Symbol', 'Ticker', 'Instrument', 'Asset'],
@@ -172,7 +173,7 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
             return None
 
         for _, row in df.iterrows():
-            # 2. Extract Data
+            # Extract Data
             curr = str(get_val(row, col_map['currency']) or 'CZK').upper()
             rate = Decimal(FX_RATES.get(curr, 1.0))
 
@@ -186,11 +187,11 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
 
             amt_czk = raw_amt * rate
 
-            # 3. Parse Date
+            # Parse Date
             raw_date = get_val(row, col_map['date'])
             try:
                 dt = pd.to_datetime(raw_date, dayfirst=True)
-            except:
+            except (TypeError, ValueError):
                 dt = pd.to_datetime(raw_date)
 
             evt = InvestmentEvent(
@@ -207,7 +208,7 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
 
         return events
     except Exception as e:
-        print(f"Error parsing history: {e}")
+        logging.log(f"Error parsing history: {e}")
         return []
 
 # --- 4. BANK PARSERS (Existing) ---

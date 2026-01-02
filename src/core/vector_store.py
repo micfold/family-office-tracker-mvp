@@ -1,8 +1,8 @@
 # src/core/vector_store.py
 import chromadb
 from chromadb.utils import embedding_functions
-from typing import List, Optional, Dict
-from uuid import UUID
+from typing import Optional, Dict
+
 
 # We use a small, fast, local model. No data leaves the machine.
 # 'all-MiniLM-L6-v2' is standard for this (80MB download once).
@@ -40,8 +40,11 @@ class VectorRuleEngine:
     def find_match(self, description: str, threshold: float = 0.3) -> Optional[Dict]:
         """
         Finds the closest matching rule.
-        :param threshold: Distance threshold (Lower is stricter for cosine usually,
-                          but Chroma returns distance. 0 = exact, 0.3-0.5 is good for semantic).
+        :param threshold: Maximum cosine distance allowed for a match. Chroma returns
+                          a distance where 0 = exact match and smaller values mean
+                          closer matches, so lower thresholds are stricter. A value
+                          around 0.3 is quite strict; higher values (e.g. 0.5–0.8)
+                          allow looser, more permissive semantic matches.
         """
         results = self.collection.query(
             query_texts=[description],

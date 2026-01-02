@@ -4,6 +4,7 @@ from typing import List
 from uuid import UUID
 from pathlib import Path
 from decimal import Decimal
+import logging
 
 from src.application.auth_service import AuthService
 from src.domain.repositories.portfolio_repository import PortfolioRepository
@@ -12,6 +13,10 @@ from src.domain.enums import Currency
 
 # Static FX Rates (Moved from legacy modules)
 FX_RATES = {'USD': 23.5, 'EUR': 25.2, 'GBP': 29.5, 'CZK': 1.0}
+
+# Module logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 def _clean_numeric(val) -> Decimal:
@@ -31,7 +36,8 @@ def _clean_numeric(val) -> Decimal:
 
     try:
         return Decimal(s)
-    except:
+    except (ValueError, TypeError) as e:
+        logger.debug("_clean_numeric failed to parse %r: %s", val, e)
         return Decimal(0)
 
 
@@ -99,7 +105,7 @@ class CsvPortfolioRepository(PortfolioRepository):
                 positions.append(pos)
             return positions
         except Exception as e:
-            print(f"Error parsing snapshot: {e}")
+            logger.exception("Error parsing snapshot file %s: %s", path, e)
             return []
 
     def get_history(self, user_id: UUID) -> List[InvestmentEvent]:
@@ -132,15 +138,26 @@ class CsvPortfolioRepository(PortfolioRepository):
                 events.append(evt)
             return events
         except Exception as e:
-            print(f"Error parsing history: {e}")
+            logger.exception("Error parsing history file %s: %s", path, e)
             return []
 
     def save_snapshot_file(self, file_obj) -> None:
         path = self._get_path(self.snap_file)
-        with open(path, "wb") as f:
-            f.write(file_obj.getbuffer())
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(file_obj.getbuffer())
+            logger.info("Saved snapshot file to %s", path)
+        except Exception as e:
+            logger.exception("Failed to save snapshot file %s: %s", path, e)
 
     def save_history_file(self, file_obj) -> None:
         path = self._get_path(self.hist_file)
-        with open(path, "wb") as f:
-            f.write(file_obj.getbuffer())
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(file_obj.getbuffer())
+            logger.info("Saved history file to %s", path)
+        except Exception as e:
+            logger.exception("Failed to save history file %s: %s", path, e)
+

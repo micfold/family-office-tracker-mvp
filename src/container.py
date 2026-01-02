@@ -25,53 +25,48 @@ from src.application.ingestion_service import IngestionService
 from src.views.models.portfolio_vm import PortfolioViewModel
 
 
-@st.cache_resource
 def get_container():
-    init_db()
+    if "container" not in st.session_state:
+        init_db()
 
-    # 1. Repos
-    asset_repo = SqlAssetRepository()
-    ledger_repo = SqlTransactionRepository()
-    portfolio_repo = SqlPortfolioRepository()
-    liability_repo = SqlLiabilityRepository()
-    tax_repo = SqlTaxLotRepository()
+        # Repos
+        asset_repo = SqlAssetRepository()
+        ledger_repo = SqlTransactionRepository()
+        portfolio_repo = SqlPortfolioRepository()
+        liability_repo = SqlLiabilityRepository()
+        # TODO: TaxLot Repo not used yet
+        tax_repo = SqlTaxLotRepository()
 
-    # 2. Base Services
-    auth_service = AuthService()
-    rule_service = RuleService()
+        # 2. Base Services
+        auth_service = AuthService()
+        rule_service = RuleService()
+        asset_service = AssetService(asset_repo)
+        ingestion_service = IngestionService(rule_service, asset_service)
+        ledger_service = LedgerService(ledger_repo, ingestion_service)
+        portfolio_service = PortfolioService(portfolio_repo)
+        liability_service = LiabilityService(liability_repo)
 
-    # 3. Domain Services
-    # CRITICAL FIX: Instantiate AssetService EARLY so we can pass it to Ingestion
-    asset_service = AssetService(asset_repo)
+        # Summary (Aggregator)
+        summary_service = SummaryService(
+            asset_service,
+            ledger_service,
+            portfolio_service,
+            liability_service
+        )
 
-    # 4. Ingestion Service (Now depends on RuleService AND AssetService)
-    ingestion_service = IngestionService(rule_service, asset_service)
+        # ViewModels
+        portfolio_vm = PortfolioViewModel(portfolio_service)
 
-    # 5. Ledger Service (Depends on IngestionService)
-    ledger_service = LedgerService(ledger_repo, ingestion_service)
+        st.session_state["container"] = {
+            "auth": auth_service,
+            "asset": asset_service,
+            "ledger": ledger_service,
+            "portfolio": portfolio_service,
+            "liability": liability_service,
+            "summary": summary_service,
+            "rule": rule_service,
+            "ingestion": ingestion_service,
+            "portfolio_vm": portfolio_vm
+        }
 
-    portfolio_service = PortfolioService(portfolio_repo)
-    liability_service = LiabilityService(liability_repo)
-
-    # 6. Summary (Aggregator)
-    summary_service = SummaryService(
-        asset_service,
-        ledger_service,
-        portfolio_service,
-        liability_service
-    )
-
-    # 7. ViewModels
-    portfolio_vm = PortfolioViewModel(portfolio_service)
-
-    return {
-        "auth": auth_service,
-        "asset": asset_service,
-        "ledger": ledger_service,
-        "portfolio": portfolio_service,
-        "liability": liability_service,
-        "summary": summary_service,
-        "rule": rule_service,
-        "ingestion": ingestion_service,
-        "portfolio_vm": portfolio_vm
-    }
+    return st.session_state["container"]
