@@ -49,12 +49,13 @@ class PortfolioService:
         # Simple History Sums
         for evt in history:
             et = evt.event_type.upper()
+            amt = abs(evt.total_amount)
             if 'DIV' in et:
-                realized_divs += evt.total_amount
+                realized_divs += amt
             elif 'BUY' in et or 'DEPOSIT' in et:
-                invested_cap_hist += evt.total_amount
+                invested_cap_hist += amt
             elif 'SELL' in et or 'WITHDRAW' in et:
-                invested_cap_hist -= evt.total_amount
+                invested_cap_hist -= amt
 
         # 3. Strategy: Prefer Snapshot Cost, Fallback to History Flow
         final_cost = total_cost_snap if total_cost_snap > 0 else invested_cap_hist
@@ -83,11 +84,11 @@ class PortfolioService:
 
         for evt in sorted_hist:
             et = evt.event_type.upper()
-            if 'BUY' in et:
-                cumulative += evt.total_amount
-            elif 'SELL' in et:
-                cumulative -= evt.total_amount
-            if cumulative < 0: cumulative = Decimal(0)
+            amt = abs(evt.total_amount)
+            if 'BUY' in et or 'DEPOSIT' in et:
+                cumulative += amt
+            elif 'SELL' in et or 'WITHDRAW' in et:
+                cumulative -= amt
 
             data.append({"Date": evt.date, "Invested Capital": float(cumulative)})
 

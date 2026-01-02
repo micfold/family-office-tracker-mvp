@@ -155,27 +155,50 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
         df = _detect_csv_df(file_obj)
         events = []
 
+        # 1. Map Columns Robustly (Like Snapshot)
+        col_map = {
+            'date': ['Date', 'Time', 'Datum'],
+            'ticker': ['Symbol', 'Ticker', 'Instrument', 'Asset'],
+            'event': ['Type', 'Event', 'Action', 'Transaction'],
+            'amount': ['Amount', 'Total', 'Value', 'Net Amount', 'Cost'],
+            'qty': ['Quantity', 'Shares', 'Qty'],
+            'price': ['Price', 'Price per share', 'Quote'],
+            'currency': ['Currency', 'Curr', 'Měna']
+        }
+
+        def get_val(row, keys):
+            for k in keys:
+                if k in row.index: return row[k]
+            return None
+
         for _, row in df.iterrows():
-            curr = str(row.get('Currency', 'CZK')).upper()
+            # 2. Extract Data
+            curr = str(get_val(row, col_map['currency']) or 'CZK').upper()
             rate = Decimal(FX_RATES.get(curr, 1.0))
 
-            raw_amt = _clean_numeric_portfolio(row.get('Amount') or row.get('Total', 0))
+            raw_amt = _clean_numeric_portfolio(get_val(row, col_map['amount']))
+            # If amount is missing, try calculating it
+            raw_qty = _clean_numeric_portfolio(get_val(row, col_map['qty']))
+            raw_price = _clean_numeric_portfolio(get_val(row, col_map['price']))
+
+            if raw_amt == 0 and raw_qty > 0 and raw_price > 0:
+                raw_amt = raw_qty * raw_price
+
             amt_czk = raw_amt * rate
 
-            # Handle date formats
-            raw_date = row.get('Date')
+            # 3. Parse Date
+            raw_date = get_val(row, col_map['date'])
             try:
-                # Try dayfirst=True for EU, fallback automatically
                 dt = pd.to_datetime(raw_date, dayfirst=True)
             except:
                 dt = pd.to_datetime(raw_date)
 
             evt = InvestmentEvent(
                 date=dt,
-                ticker=str(row.get('Symbol') or row.get('Ticker', 'CASH')),
-                event_type=str(row.get('Event') or row.get('Action', 'UNK')),
-                quantity=_clean_numeric_portfolio(row.get('Quantity')),
-                price_per_share=_clean_numeric_portfolio(row.get('Price')),
+                ticker=str(get_val(row, col_map['ticker']) or 'CASH'),
+                event_type=str(get_val(row, col_map['event']) or 'UNK'),
+                quantity=raw_qty,
+                price_per_share=raw_price,
                 total_amount=amt_czk,
                 currency=Currency.CZK,
                 owner=user_id
@@ -186,7 +209,6 @@ def parse_portfolio_history(file_obj, user_id) -> List[InvestmentEvent]:
     except Exception as e:
         print(f"Error parsing history: {e}")
         return []
-
 
 # --- 4. BANK PARSERS (Existing) ---
 

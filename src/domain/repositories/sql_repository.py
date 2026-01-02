@@ -77,7 +77,14 @@ class SqlTransactionRepository(TransactionRepository):
     def get_as_dataframe(self, user_id: UUID) -> pd.DataFrame:
         txs = self.get_all(user_id)
         if not txs: return pd.DataFrame()
-        return pd.DataFrame([t.model_dump() for t in txs])
+
+        df = pd.DataFrame([t.model_dump() for t in txs])
+
+        for col in ['id', 'owner', 'asset_id']:
+            if col in df.columns:
+                df[col] = df[col].astype(str)
+
+        return df
 
     def save_bulk(self, transactions: List[Transaction]) -> None:
         with Session(engine) as session:
