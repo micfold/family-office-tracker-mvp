@@ -23,6 +23,8 @@ class Asset(SQLModel, table=True):
 
     # Real Estate Fields
     address: Optional[str] = None
+    latitude: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 7))
+    longitude: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 7))
     area_m2: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 2))
     purchase_price: Optional[Decimal] = Field(default=None, sa_type=Numeric(20, 2))
     purchase_currency: Optional[Currency] = None

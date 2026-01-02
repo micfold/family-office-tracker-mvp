@@ -9,3 +9,5 @@ sqlmodel~=0.0.16
 SQLAlchemy~=2.0.45
 chromadb
 sentence-transformers
+googlemaps~=4.10.0
+streamlit-javascript~=0.1.5

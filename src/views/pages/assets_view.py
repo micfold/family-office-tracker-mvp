@@ -76,9 +76,18 @@ def _render_add_asset_form(service, category):
 
         # Conditional Fields
         if category == AssetCategory.REAL_ESTATE:
+            from src.views.components.address_autocomplete import render_address_input_with_autocomplete
+            
             st.markdown("---")
+            st.markdown("**📍 Property Location**")
+            
+            # Note: We can't use the autocomplete component inside a form
+            # so we'll add a note and use a simpler approach
             c3, c4 = st.columns(2)
-            kwargs['address'] = c3.text_input("Address")
+            kwargs['address'] = c3.text_input(
+                "Address", 
+                help="Enter the full address. After submitting, you can edit to use address autocomplete."
+            )
             kwargs['area_m2'] = Decimal(c4.number_input("Area (m²)", step=1.0))
 
         elif category == AssetCategory.VEHICLE:
