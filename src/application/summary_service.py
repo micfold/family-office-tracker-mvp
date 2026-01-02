@@ -44,14 +44,14 @@ class SummaryService:
         # 4. Ledger
         ledger_df = self.ledger_svc.get_recent_transactions()
 
-        # FIX: Check for lowercase 'amount' (SQLModel)
+        # Normalize column names to lowercase to handle inconsistencies
         if not ledger_df.empty:
-            # Handle potential casing issues if data comes from mixed sources
-            amt_col = 'amount' if 'amount' in ledger_df.columns else 'Amount'
+            ledger_df.columns = [col.lower() for col in ledger_df.columns]
 
-            ledger_balance = Decimal(ledger_df[amt_col].sum())
-            monthly_income = ledger_df[ledger_df[amt_col] > 0][amt_col].sum()
-            monthly_spend = ledger_df[ledger_df[amt_col] < 0][amt_col].sum()
+        if not ledger_df.empty and 'amount' in ledger_df.columns:
+            ledger_balance = Decimal(ledger_df['amount'].sum())
+            monthly_income = ledger_df[ledger_df['amount'] > 0]['amount'].sum()
+            monthly_spend = ledger_df[ledger_df['amount'] < 0]['amount'].sum()
         else:
             ledger_balance = Decimal(0)
             monthly_income = Decimal(0)
